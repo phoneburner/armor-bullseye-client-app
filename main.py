@@ -17,7 +17,7 @@ from providers.asterisk_provider import AsteriskProvider
 from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 log = logging.getLogger("bullseye")
 
