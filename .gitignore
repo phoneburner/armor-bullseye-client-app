@@ -1,0 +1,29 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Stale nested dirs from parent project layout (not part of client app)
+/agent/
+/server/
+CLAUDE.md
+**/CLAUDE.md
+Bullseye_Deck.pptx

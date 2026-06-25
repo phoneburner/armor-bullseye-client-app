@@ -1,0 +1,36 @@
+services:
+  bullseye-agent:
+    build: .
+    image: bullseye-agent:latest
+    container_name: bullseye-agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # When the RC sidecar is running in Docker, reach it by service name.
+      # Overridden only if RINGCENTRAL_SIDECAR_URL is NOT already set in .env.
+      - RINGCENTRAL_SIDECAR_URL=http://ringcentral-sidecar:3000
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # RingCentral SIP sidecar — only starts when using the "ringcentral" profile.
+  # Usage: docker compose --profile ringcentral up -d --build
+  ringcentral-sidecar:
+    build: ./ringcentral-sidecar
+    container_name: bullseye-rc-sidecar
+    restart: unless-stopped
+    profiles: ["ringcentral"]
+    env_file:
+      - .env
+    expose:
+      - "3000"
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

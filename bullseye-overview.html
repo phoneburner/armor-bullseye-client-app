@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bullseye — Phone Number Reputation Testing</title>
+<style>
+  @page { size: letter; margin: 0.6in 0.7in; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1e293b;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 36px 24px 48px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding-bottom: 28px;
+    margin-bottom: 28px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .header h1 {
+    font-size: 34px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.5px;
+  }
+  .header .tagline {
+    font-size: 16px;
+    color: #64748b;
+    margin-top: 6px;
+  }
+
+  /* Sections */
+  h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-top: 28px;
+    margin-bottom: 10px;
+  }
+
+  p { margin-bottom: 12px; color: #334155; }
+
+  /* Value props */
+  .value-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 18px 0;
+  }
+  .value-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .value-card .icon {
+    font-size: 24px;
+    margin-bottom: 6px;
+  }
+  .value-card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 4px;
+  }
+  .value-card p {
+    font-size: 13px;
+    color: #475569;
+    margin: 0;
+  }
+
+  /* Diagram */
+  .diagram-section {
+    margin: 24px 0;
+  }
+  .diagram {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 16px 0;
+  }
+  .diagram-box {
+    flex: 1;
+    text-align: center;
+    padding: 16px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .diagram-arrow {
+    padding: 0 10px;
+    color: #94a3b8;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .box-you { background: #f0fdf4; border: 2px solid #86efac; }
+  .box-you h3 { color: #15803d; font-size: 13px; margin-bottom: 3px; }
+  .box-you p { font-size: 11px; color: #475569; margin: 0; }
+  .box-bullseye { background: #eff6ff; border: 2px solid #93c5fd; }
+  .box-bullseye h3 { color: #1e40af; font-size: 13px; margin-bottom: 3px; }
+  .box-bullseye p { font-size: 11px; color: #475569; margin: 0; }
+  .box-carrier { background: #faf5ff; border: 2px solid #c4b5fd; }
+  .box-carrier h3 { color: #6d28d9; font-size: 13px; margin-bottom: 3px; }
+  .box-carrier p { font-size: 11px; color: #475569; margin: 0; }
+
+  /* Security callout */
+  .security {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 20px 0;
+  }
+  .security h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #15803d;
+    margin-bottom: 6px;
+  }
+  .security p {
+    font-size: 13px;
+    color: #334155;
+    margin: 0;
+  }
+  .security p + p { margin-top: 8px; }
+
+  /* How it works steps */
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin: 16px 0;
+  }
+  .step {
+    text-align: center;
+    padding: 16px 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+  }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #1e40af;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  .step h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 4px;
+  }
+  .step p {
+    font-size: 12px;
+    color: #475569;
+    margin: 0;
+  }
+
+  /* Providers */
+  .providers {
+    display: flex;
+    gap: 10px;
+    margin: 14px 0;
+    flex-wrap: wrap;
+  }
+  .provider-badge {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+
+  ul { padding-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 4px; color: #334155; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Bullseye</h1>
+  <div class="tagline">Know if your phone numbers are being flagged as spam &mdash; before your customers do.</div>
+</div>
+
+
+<h2>The Problem</h2>
+
+<p>
+  When carriers or call-blocking apps flag your phone numbers as "Spam Likely,"
+  your calls don't get answered. You lose revenue, miss appointments, and
+  damage customer trust &mdash; often without knowing it's happening until the
+  complaints roll in.
+</p>
+<p>
+  Traditional testing relies on centralized infrastructure that doesn't reflect
+  how your numbers actually behave on your own carriers and in your own
+  calling environment.
+</p>
+
+
+<h2>The Solution</h2>
+
+<p>
+  Bullseye places real test calls from <strong>your own phone numbers</strong>,
+  through <strong>your own telecom provider</strong>, and tells you exactly
+  what happened &mdash; answered, blocked, or flagged. You get an accurate,
+  real-world picture of your number reputation.
+</p>
+
+<div class="value-grid">
+  <div class="value-card">
+    <h3>Real calls, real results</h3>
+    <p>Test calls originate from your actual numbers on your carrier &mdash;
+    not a third-party test line. What Bullseye sees is what your customers experience.</p>
+  </div>
+  <div class="value-card">
+    <h3>Fully automated</h3>
+    <p>Tests run on demand or on a schedule. No manual dialing, no
+    spreadsheets, no guesswork.</p>
+  </div>
+  <div class="value-card">
+    <h3>Fast to deploy</h3>
+    <p>Install the lightweight agent on any machine with Docker or Python.
+    Connect your telecom account. Start testing in minutes.</p>
+  </div>
+  <div class="value-card">
+    <h3>Your credentials stay with you</h3>
+    <p>Telecom API keys and tokens never leave your infrastructure.
+    Bullseye only receives the call outcome &mdash; nothing else.</p>
+  </div>
+</div>
+
+
+<h2>How It Works</h2>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <h3>Install the agent</h3>
+    <p>A small service runs on your machine and connects to the Bullseye server.</p>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <h3>Tests are dispatched</h3>
+    <p>The server sends test instructions. The agent places real calls through your provider.</p>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <h3>Results reported</h3>
+    <p>Call status (answered, no answer, busy, failed) is reported back. You know instantly if a number is blocked.</p>
+  </div>
+</div>
+
+<div class="diagram">
+  <div class="diagram-box box-bullseye">
+    <h3>Bullseye Server</h3>
+    <p>Dispatches tests<br>Collects results</p>
+  </div>
+  <div class="diagram-arrow">&rarr;</div>
+  <div class="diagram-box box-you">
+    <h3>Your Agent</h3>
+    <p>Runs on your machine<br>Your credentials stay here</p>
+  </div>
+  <div class="diagram-arrow">&rarr;</div>
+  <div class="diagram-box box-carrier">
+    <h3>Your Carrier</h3>
+    <p>Your numbers<br>Real call placed</p>
+  </div>
+</div>
+
+
+<div class="security">
+  <h3>Security &amp; Privacy</h3>
+  <p>
+    Bullseye runs entirely on your infrastructure and uses your existing telecom
+    credentials to place test calls. Your API keys, tokens, and account IDs
+    never leave your environment. The only information sent to ARMOR&reg; is the
+    call status (e.g., spam label, blocked, delivered) and the phone number being
+    tested. No call content or recordings are ever collected. All connections are
+    encrypted with TLS and Armor Solutions is SOC 2 Type II compliant. You can
+    remove Bullseye from your environment at any time.
+  </p>
+</div>
+
+
+<h2>Supported Providers</h2>
+
+<div class="providers">
+  <span class="provider-badge">Bandwidth</span>
+  <span class="provider-badge">Twilio</span>
+  <span class="provider-badge">Telnyx</span>
+  <span class="provider-badge">RingCentral</span>
+</div>
+
+<p style="font-size: 13px; color: #64748b;">
+  Works with any provider that supports programmatic outbound voice.
+  Additional providers can be added on request.
+</p>
+
+
+<h2>Getting Started</h2>
+
+<ul>
+  <li>Install the Bullseye agent (Docker or Python) on any server or VM</li>
+  <li>Connect your telecom provider credentials</li>
+  <li>Start receiving test results in minutes</li>
+</ul>
+
+<p>
+  Contact your Bullseye representative to receive your server URL and
+  API key, and to schedule onboarding.
+</p>
+
+
+<div class="footer">
+  Bullseye &mdash; Phone Number Reputation Testing &mdash; &copy; 2026 PhoneBurner
+</div>
+
+</body>
+</html>

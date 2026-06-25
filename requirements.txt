@@ -1,0 +1,7 @@
+bandwidth-sdk==23.0.0
+requests==2.33.1
+python-dotenv==1.2.2
+websockets==15.0.1
+telnyx==4.109.0
+twilio==9.10.5
+ringcentral==0.9.2

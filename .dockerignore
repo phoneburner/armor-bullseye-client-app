@@ -1,0 +1,14 @@
+.env
+*.pyc
+__pycache__/
+.venv/
+venv/
+.git/
+.gitignore
+README.md
+installation-guide.html
+installation-guide.pdf
+CLAUDE.md
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bullseye Agent — Installation Guide</title>
+<style>
+  :root {
+    --brand: #1e40af;
+    --brand-light: #dbeafe;
+    --text: #1a1a1a;
+    --text-secondary: #475569;
+    --border: #e2e8f0;
+    --bg-code: #f8fafc;
+    --bg-code-dark: #1e293b;
+    --success: #16a34a;
+    --success-bg: #f0fdf4;
+    --warning: #d97706;
+    --warning-bg: #fffbeb;
+  }
+
+  @page {
+    size: letter;
+    margin: 0.75in 0.9in;
+    @bottom-center {
+      content: counter(page);
+      font-size: 9pt;
+      color: #999;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text);
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 48px 0 40px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 40px;
+  }
+  .header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--brand);
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .header .subtitle {
+    font-size: 17px;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+  .header .version {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--brand);
+    background: var(--brand-light);
+    padding: 3px 10px;
+    border-radius: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Table of Contents */
+  .toc {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px 28px;
+    margin-bottom: 40px;
+  }
+  .toc h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    border: none;
+    padding: 0;
+  }
+  .toc ol {
+    padding-left: 20px;
+  }
+  .toc li {
+    margin-bottom: 6px;
+  }
+  .toc a {
+    color: var(--brand);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Headings */
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 48px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 28px;
+    margin-bottom: 10px;
+  }
+
+  p { margin-bottom: 14px; color: var(--text-secondary); }
+  strong { color: var(--text); }
+
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; color: var(--text-secondary); }
+
+  /* Code */
+  code {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", Menlo, Consolas, monospace;
+    font-size: 13px;
+    background: var(--bg-code);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text);
+  }
+
+  pre {
+    background: var(--bg-code-dark);
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 16px 0;
+    overflow-x: auto;
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th {
+    background: #f1f5f9;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  td {
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  tr:nth-child(even) td { background: #fafbfc; }
+
+  /* Callouts */
+  .callout {
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    page-break-inside: avoid;
+  }
+  .callout-title {
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .callout p { margin: 0; font-size: 14px; }
+  .callout p + p { margin-top: 8px; }
+
+  .callout-info {
+    background: var(--brand-light);
+    border-left: 4px solid var(--brand);
+  }
+  .callout-info .callout-title { color: var(--brand); }
+
+  .callout-success {
+    background: var(--success-bg);
+    border-left: 4px solid var(--success);
+  }
+  .callout-success .callout-title { color: #15803d; }
+
+  .callout-warning {
+    background: var(--warning-bg);
+    border-left: 4px solid var(--warning);
+  }
+  .callout-warning .callout-title { color: #b45309; }
+
+  /* Download buttons */
+  .download-row {
+    display: flex;
+    gap: 16px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+  .download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: var(--brand);
+    color: #fff;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: background 0.15s;
+  }
+  .download-btn:hover { background: #1e3a8a; }
+  .download-btn .arrow { font-size: 18px; }
+
+  /* Steps */
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--brand);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+
+  .page-break { page-break-before: always; }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 40px 0;
+  }
+
+  /* Tabs */
+  .tab-group {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 20px 0;
+  }
+  .tab-header {
+    display: flex;
+    background: #f1f5f9;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-label {
+    padding: 10px 24px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: default;
+    border-right: 1px solid var(--border);
+  }
+  .tab-label.active {
+    background: #fff;
+    color: var(--brand);
+    border-bottom: 2px solid var(--brand);
+  }
+  .tab-content { padding: 20px; }
+
+  .env-table td:first-child { white-space: nowrap; font-weight: 500; }
+
+  .footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Bullseye Agent</h1>
+  <div class="subtitle">Installation &amp; Configuration Guide</div>
+  <div class="version">v1.0.0</div>
+</div>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#prerequisites">Prerequisites</a></li>
+    <li><a href="#download">Download</a></li>
+    <li><a href="#configure">Configure</a></li>
+    <li><a href="#providers">Provider Setup</a></li>
+    <li><a href="#install-docker">Install with Docker (Recommended)</a></li>
+    <li><a href="#install-python">Install with Python</a></li>
+    <li><a href="#verify">Verify the Connection</a></li>
+    <li><a href="#configuration-reference">Configuration Reference</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#security">Security</a></li>
+    <li><a href="#support">Support</a></li>
+  </ol>
+</nav>
+
+
+<h2 id="overview">1. Overview</h2>
+
+<p>
+  The Bullseye agent is a lightweight service that runs on your infrastructure.
+  When it receives a test instruction from the Bullseye server, it places a
+  real phone call through your telecom provider and reports the result.
+</p>
+<p>
+  Calls originate from <strong>your own phone numbers</strong> on
+  <strong>your own carrier</strong>, giving an accurate picture of whether
+  those numbers are being flagged as spam.
+</p>
+
+<div class="callout callout-info">
+  <div class="callout-title">How it works</div>
+  <p>
+    The agent maintains a persistent, encrypted WebSocket connection to the
+    Bullseye server. When a test is queued, the server pushes the instruction
+    to the agent in real time. The agent dials the call, monitors its progress,
+    and reports the outcome (answered, no answer, busy, or failed) back to the
+    server. Your telecom credentials never leave your machine.
+  </p>
+</div>
+
+<div style="margin: 28px 0; page-break-inside: avoid;">
+  <div style="display: flex; gap: 16px; font-size: 13px; line-height: 1.5;">
+    <!-- Customer side -->
+    <div style="flex: 1; border: 2px solid #6ee7b7; border-radius: 10px; padding: 18px 16px; background: #f0fdf4;">
+      <div style="font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #15803d; margin-bottom: 12px;">Your Environment</div>
+      <div style="background: #fff; border: 1px solid #d1fae5; border-radius: 8px; padding: 14px; margin-bottom: 10px; text-align: center;">
+        <div style="font-weight: 700; color: #065f46;">Bullseye Agent</div>
+        <div style="font-size: 11px; color: #475569; margin-top: 4px;">Runs on your machine<br>Holds your telecom credentials</div>
+      </div>
+      <div style="text-align: center; color: #94a3b8; font-size: 18px;">&darr; &uarr;</div>
+      <div style="background: #fff; border: 1px solid #d1fae5; border-radius: 8px; padding: 14px; text-align: center;">
+        <div style="font-weight: 700; color: #065f46;">Your Telecom Provider</div>
+        <div style="font-size: 11px; color: #475569; margin-top: 4px;">Twilio / Bandwidth / Telnyx / RC<br>Your numbers, your carrier</div>
+      </div>
+    </div>
+    <!-- Connection -->
+    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 4px; min-width: 100px;">
+      <div style="font-size: 11px; color: #64748b; text-align: center; margin-bottom: 6px;">Encrypted<br>WebSocket</div>
+      <div style="font-size: 24px; color: #3b82f6;">&larr; &rarr;</div>
+      <div style="font-size: 11px; color: #64748b; text-align: center; margin-top: 6px;">Call status<br>only</div>
+    </div>
+    <!-- Bullseye side -->
+    <div style="flex: 1; border: 2px solid #93c5fd; border-radius: 10px; padding: 18px 16px; background: #eff6ff;">
+      <div style="font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #1e40af; margin-bottom: 12px;">Bullseye Environment</div>
+      <div style="background: #fff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px; text-align: center;">
+        <div style="font-weight: 700; color: #1e3a8a;">Bullseye Server</div>
+        <div style="font-size: 11px; color: #475569; margin-top: 4px;">Dispatches tests<br>Receives call status results<br>No access to your credentials</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<h2 id="prerequisites">2. Prerequisites</h2>
+
+<p>Before you begin, make sure you have:</p>
+
+<table>
+  <tr>
+    <th>Item</th>
+    <th>Details</th>
+  </tr>
+  <tr>
+    <td><strong>Bullseye credentials</strong></td>
+    <td>
+      Your Bullseye contact will provide a <strong>server URL</strong> and an
+      <strong>API key</strong> (starts with <code>bse_</code>).
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Telecom provider account</strong></td>
+    <td>
+      <strong>Bandwidth</strong> — Account ID, OAuth Client ID/Secret, Application ID<br>
+      <strong>Twilio</strong> — Account SID + primary Auth Token<br>
+      <strong>Telnyx</strong> — API key + Call Control Connection ID<br>
+      <strong>RingCentral</strong> — Client ID, Client Secret, JWT token + Node.js 18+<br>
+      <strong>Asterisk</strong> — ARI URL + credentials + a dial endpoint template<br>
+      <strong>FreeSWITCH</strong> — ESL host + password + a dial endpoint template<br>
+      <strong>Proprietary</strong> — your own network code in <code>providers/proprietary_provider.py</code>
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Server / VM</strong></td>
+    <td>
+      Any Linux, macOS, or Windows machine with outbound internet access.
+      Docker is recommended; Python 3.10+ is the alternative.
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Network access</strong></td>
+    <td>
+      Outbound HTTPS (port 443) to the Bullseye server and your provider's
+      API (e.g. <code>api.twilio.com</code>). No inbound ports required.
+    </td>
+  </tr>
+</table>
+
+
+<h2 id="download">3. Download</h2>
+
+<p>Download the latest agent package:</p>
+
+<div class="download-row">
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.0.tar.gz" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.0.tar.gz
+  </a>
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.0.zip" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.0.zip
+  </a>
+</div>
+
+<p>Extract the archive:</p>
+
+<pre><code># Linux / macOS
+tar xzf bullseye-agent-1.0.0.tar.gz
+cd armor-bullseye-client-app-1.0.0
+
+# Windows (PowerShell)
+Expand-Archive bullseye-agent-1.0.0.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.0</code></pre>
+
+<p>You should see the following files:</p>
+
+<pre><code>bullseye-agent/
+  main.py               # Agent entry point
+  requirements.txt      # Python dependencies
+  providers/            # Telephony provider integrations
+  Dockerfile            # Docker image definition
+  docker-compose.yml    # Docker Compose service
+  .env.example          # Configuration template</code></pre>
+
+
+<h2 id="configure">4. Configure</h2>
+
+<p>Create your configuration file from the provided template:</p>
+
+<pre><code>cp .env.example .env
+chmod 600 .env</code></pre>
+
+<p>Open <code>.env</code> in a text editor and fill in the required values:</p>
+
+<table class="env-table">
+  <tr>
+    <th>Variable</th>
+    <th>Required</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td><code>BULLSEYE_SERVER_URL</code></td>
+    <td>Yes</td>
+    <td>Server URL provided by Bullseye (e.g. <code>https://your-bullseye-server</code>)</td>
+  </tr>
+  <tr>
+    <td><code>BULLSEYE_API_KEY</code></td>
+    <td>Yes</td>
+    <td>Your agent's API key (starts with <code>bse_</code>)</td>
+  </tr>
+  <tr>
+    <td><code>TELEPHONY_PROVIDER</code></td>
+    <td>Yes</td>
+    <td><code>bandwidth</code>, <code>twilio</code>, <code>telnyx</code>, <code>ringcentral</code>, <code>asterisk</code>, <code>freeswitch</code>, or <code>proprietary</code></td>
+  </tr>
+</table>
+
+<p>Then set the credentials for your provider. See the next section for details.</p>
+
+<div class="page-break"></div>
+
+<h2 id="providers">5. Provider Setup</h2>
+
+<p>Configure the credentials for your telephony provider. Only one provider is
+needed.</p>
+
+
+<h3 id="provider-bandwidth">Bandwidth</h3>
+
+<p>
+  Bandwidth is a CPaaS platform with direct programmatic voice. Calls are
+  one-legged and fully automated. Bandwidth is the underlying carrier for many
+  other providers including RingCentral.
+</p>
+
+<p><strong>What you need:</strong></p>
+<ul>
+  <li>A Bandwidth account with Voice API enabled. A free
+    <a href="https://www.bandwidth.com/build-sign-up/">Bandwidth Build</a>
+    account works for evaluation; trial accounts can only call the verified
+    mobile number on file until a credit card is added.</li>
+  <li><strong>OAuth API credentials</strong> (Client ID + Client Secret)
+    created in the Bandwidth dashboard:
+    <strong>Account &rarr; API Credentials &rarr; Create</strong></li>
+  <li>A Voice Application (provides the Application ID)</li>
+  <li>A phone number assigned to that application</li>
+</ul>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>BANDWIDTH_ACCOUNT_ID</code></td><td>Your Bandwidth account ID (numeric)</td></tr>
+  <tr><td><code>BANDWIDTH_CLIENT_ID</code></td><td>OAuth Client ID</td></tr>
+  <tr><td><code>BANDWIDTH_CLIENT_SECRET</code></td><td>OAuth Client Secret</td></tr>
+  <tr><td><code>BANDWIDTH_APPLICATION_ID</code></td><td>Voice application ID</td></tr>
+  <tr><td><code>BANDWIDTH_ANSWER_URL</code></td><td>Pre-filled: <code>https://your-bullseye-server/bandwidth/answer</code></td></tr>
+</table>
+
+<div class="callout callout-warning">
+  <div class="callout-title">Legacy Basic Auth deprecated</div>
+  <p>
+    Bandwidth's legacy username/password authentication is still accepted by
+    the agent for backwards compatibility (<code>BANDWIDTH_API_USERNAME</code>
+    and <code>BANDWIDTH_API_PASSWORD</code>) but is being decommissioned by
+    Bandwidth on <strong>2026-12-02</strong>. New accounts should use OAuth.
+  </p>
+</div>
+
+<div class="callout callout-info">
+  <div class="callout-title">About the answer URL</div>
+  <p>
+    Bandwidth requires a webhook URL for call control. The
+    <code>BANDWIDTH_ANSWER_URL</code> points to a Bullseye server endpoint
+    that tells Bandwidth to hold the call for 10 seconds and hang up. This
+    is pre-configured in <code>.env.example</code> &mdash; you don't need
+    to change it.
+  </p>
+</div>
+
+<p><strong>Additional requirements:</strong> None. Works with Docker or Python.</p>
+
+
+<h3 id="provider-twilio">Twilio</h3>
+
+<p>
+  Twilio is a CPaaS platform with direct programmatic voice. Calls are
+  one-legged and fully automated.
+</p>
+
+<p><strong>What you need:</strong></p>
+<ul>
+  <li>A Twilio account</li>
+  <li>The primary Account SID and Auth Token from the
+    <a href="https://console.twilio.com">Twilio Console dashboard</a>
+    (not an API key)</li>
+  <li>A phone number with voice capability purchased in the account</li>
+</ul>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>TWILIO_ACCOUNT_SID</code></td><td>Account SID (starts with <code>AC</code>)</td></tr>
+  <tr><td><code>TWILIO_AUTH_TOKEN</code></td><td>Primary Auth Token from the Console dashboard</td></tr>
+</table>
+
+<div class="callout callout-warning">
+  <div class="callout-title">Use the Auth Token, not an API key</div>
+  <p>
+    Twilio API keys (<code>SK...</code>) have restricted permissions and
+    will not work. Use the primary Auth Token displayed on the
+    <a href="https://console.twilio.com">Console dashboard</a>.
+  </p>
+</div>
+
+<p><strong>Additional requirements:</strong> None. Works with Docker or Python.</p>
+
+
+<h3 id="provider-telnyx">Telnyx</h3>
+
+<p>
+  Telnyx is a CPaaS platform with Call Control APIs. Calls are one-legged and
+  fully automated. Note that call events have a 15&ndash;20 second delay in
+  the Telnyx API; this does not affect call completion.
+</p>
+
+<p><strong>What you need:</strong></p>
+<ul>
+  <li>A Telnyx account with a <strong>Voice API (Call Control)</strong>
+    application &mdash; not TeXML, not SIP Connection</li>
+  <li>An API key from the Telnyx Mission Control portal</li>
+  <li>A phone number assigned to the Call Control application</li>
+  <li>An outbound voice profile assigned to the application</li>
+</ul>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>TELNYX_API_KEY</code></td><td>API key from the Telnyx portal</td></tr>
+  <tr><td><code>TELNYX_CONNECTION_ID</code></td><td>Call Control application ID</td></tr>
+</table>
+
+<p><strong>Additional requirements:</strong> None. Works with Docker or Python.</p>
+
+
+<h3 id="provider-ringcentral">RingCentral</h3>
+
+<p>
+  RingCentral is a UCaaS platform. Unlike Bandwidth, Twilio, and Telnyx, it
+  does not support simple REST-based outbound calling. The Bullseye agent uses
+  a <strong>SIP sidecar</strong> &mdash; a small Node.js service that
+  registers as a softphone on your RingCentral account and places calls
+  directly via SIP.
+</p>
+
+<p><strong>What you need:</strong></p>
+<ul>
+  <li>A RingCentral account with a REST API application registered at
+    <a href="https://developers.ringcentral.com">developers.ringcentral.com</a></li>
+  <li>A JWT credential generated in the RingCentral admin portal</li>
+  <li>An <strong>&ldquo;Other Phone&rdquo; device</strong> on the extension.
+    To create: Admin Portal &rarr; Phones &amp; Devices &rarr; Add Device &rarr;
+    Existing Phone.</li>
+</ul>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>RINGCENTRAL_CLIENT_ID</code></td><td>REST API app Client ID</td></tr>
+  <tr><td><code>RINGCENTRAL_CLIENT_SECRET</code></td><td>REST API app Client Secret</td></tr>
+  <tr><td><code>RINGCENTRAL_JWT_TOKEN</code></td><td>JWT credential from the admin portal</td></tr>
+  <tr><td><code>RINGCENTRAL_SERVER_URL</code></td><td>Optional. Defaults to <code>https://platform.ringcentral.com</code></td></tr>
+</table>
+
+<div class="callout callout-info">
+  <div class="callout-title">SIP sidecar</div>
+  <p>
+    RingCentral requires a SIP sidecar to run alongside the agent:
+  </p>
+  <p>
+    <strong>Docker:</strong> start with the <code>ringcentral</code> profile:
+    <code>docker compose --profile ringcentral up -d --build</code>. The sidecar
+    runs as a second container automatically.
+  </p>
+  <p>
+    <strong>Python:</strong> requires <strong>Node.js 18+</strong> installed on
+    the machine. The agent detects this and starts the sidecar as a subprocess
+    automatically. The first run will install npm dependencies.
+  </p>
+  <p>
+    No public IP or inbound ports are needed &mdash; SIP runs over an outbound
+    WebSocket connection.
+  </p>
+</div>
+
+<div class="callout callout-warning">
+  <div class="callout-title">Caller ID limitation</div>
+  <p>
+    The &ldquo;from&rdquo; number is determined by which RingCentral device
+    the sidecar registers as. You cannot specify a different caller ID per call.
+  </p>
+</div>
+
+
+<h3 id="provider-asterisk">Asterisk</h3>
+
+<p>
+  Use this if you run your own Asterisk PBX (13.1 or newer) and want to
+  originate calls through it. The agent talks to Asterisk via ARI
+  (Asterisk REST Interface) over HTTP + WebSocket.
+</p>
+
+<p><strong>What you need:</strong></p>
+<ul>
+  <li>An Asterisk instance reachable from the agent host</li>
+  <li>ARI enabled (<code>ari.conf</code>) with a user the agent can authenticate as</li>
+  <li>HTTP server enabled (<code>http.conf</code>) &mdash; usually port 8088</li>
+  <li>A dialplan landing-pad context for the call to enter after the originate
+    (a simple <code>Answer() / Wait(10) / Hangup()</code> context is enough)</li>
+  <li>An outbound SIP trunk or endpoint configured for the destinations
+    you want to dial</li>
+</ul>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>ASTERISK_ARI_URL</code></td><td>ARI base URL, e.g. <code>http://asterisk-host:8088/ari</code></td></tr>
+  <tr><td><code>ASTERISK_ARI_USERNAME</code></td><td>ARI user from <code>ari.conf</code></td></tr>
+  <tr><td><code>ASTERISK_ARI_PASSWORD</code></td><td>ARI password from <code>ari.conf</code></td></tr>
+  <tr><td><code>ASTERISK_ENDPOINT_TEMPLATE</code></td><td>Dial endpoint template, e.g. <code>PJSIP/{to_number}@my-trunk</code></td></tr>
+  <tr><td><code>ASTERISK_CONTEXT</code></td><td>Dialplan context the originated call enters (e.g. <code>bullseye-landing</code>)</td></tr>
+  <tr><td><code>ASTERISK_EXTENSION</code></td><td>Optional. Extension within that context (default <code>s</code>)</td></tr>
+  <tr><td><code>ASTERISK_DIAL_TIMEOUT</code></td><td>Optional. Dial timeout in seconds (default <code>30</code>)</td></tr>
+</table>
+
+<div class="callout callout-info">
+  <div class="callout-title">SBC deployments</div>
+  <p>
+    If you want Bullseye to dial through your own SBC, the
+    <code>sbc-asterisk/</code> directory in the agent repo ships a
+    docker-compose layout that runs both the agent and an Asterisk sidecar
+    configured against your SBC. See <code>sbc-asterisk/README.md</code>.
+  </p>
+</div>
+
+<p><strong>Additional requirements:</strong> network reachability to your Asterisk
+ARI HTTP port (8088 by default).</p>
+
+
+<h3 id="provider-freeswitch">FreeSWITCH</h3>
+
+<p>
+  Use this if you run your own FreeSWITCH instance. The agent connects to
+  FreeSWITCH's Event Socket (ESL), originates the call, and watches the
+  event stream for the terminal hangup cause.
+</p>
+
+<p><strong>What you need:</strong></p>
+<ul>
+  <li>A FreeSWITCH instance with <code>mod_event_socket</code> loaded
+    (loaded by default in vanilla FreeSWITCH)</li>
+  <li>ESL bound on an interface reachable from the agent host, with a strong
+    password configured in <code>event_socket.conf.xml</code>
+    (<strong>change the default <code>ClueCon</code></strong>)</li>
+  <li>A SIP profile or gateway configured for outbound calls to the
+    destinations you want to dial</li>
+</ul>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>FREESWITCH_HOST</code></td><td>ESL host or IP</td></tr>
+  <tr><td><code>FREESWITCH_PORT</code></td><td>Optional. ESL port (default <code>8021</code>)</td></tr>
+  <tr><td><code>FREESWITCH_PASSWORD</code></td><td>ESL password from <code>event_socket.conf.xml</code></td></tr>
+  <tr><td><code>FREESWITCH_ENDPOINT_TEMPLATE</code></td><td>Dial string template, e.g. <code>sofia/gateway/my-provider/{to_number}</code></td></tr>
+  <tr><td><code>FREESWITCH_DIAL_TIMEOUT</code></td><td>Optional. Total seconds to wait for the terminal event (default <code>90</code>)</td></tr>
+</table>
+
+<div class="callout callout-warning">
+  <div class="callout-title">ESL is unencrypted</div>
+  <p>
+    The FreeSWITCH event socket is plain TCP, no TLS. Keep the agent and
+    FreeSWITCH on a private network, or tunnel the ESL connection
+    (Tailscale / WireGuard / SSH tunnel).
+  </p>
+</div>
+
+<p><strong>Additional requirements:</strong> network reachability to your
+FreeSWITCH ESL port (8021 by default).</p>
+
+
+<h3 id="provider-proprietary">Proprietary (your own network)</h3>
+
+<p>
+  Use this if you originate calls through your own telecom infrastructure
+  &mdash; one that isn't a hosted CPaaS, Asterisk, or FreeSWITCH. You
+  implement a single Python function (<code>place_call</code>) that calls
+  into your internal system, and the agent handles everything else
+  (WebSocket auth, reconnect, event streaming).
+</p>
+
+<p><strong>What you need:</strong></p>
+<ul>
+  <li>A way to programmatically place a call on your network (an internal
+    SDK, REST API, message queue, etc.)</li>
+  <li>Whatever credentials / configuration your network needs &mdash; you
+    can add them as environment variables that your <code>place_call</code>
+    reads</li>
+</ul>
+
+<p>
+  See <a href="CUSTOM_PROVIDER_GUIDE.md"><code>CUSTOM_PROVIDER_GUIDE.md</code></a>
+  in the agent repo for the full walkthrough: function signature, expected
+  return values, status codes, and a reference implementation sketch.
+</p>
+
+<p>
+  The stub lives at <code>providers/proprietary_provider.py</code> &mdash;
+  open it, find the <code>TODO</code> block inside <code>place_call</code>,
+  and fill it in with your network call. No other code changes required.
+</p>
+
+<p><strong>Additional requirements:</strong> none from Bullseye's side. Your
+implementation determines what your environment needs.</p>
+
+
+<div class="page-break"></div>
+
+<h2 id="install-docker">6. Install with Docker (Recommended)</h2>
+
+<p>Docker handles Python, dependencies, and automatic restarts.</p>
+
+<h3><span class="step-num">1</span> Install Docker</h3>
+<p>
+  If Docker is not already installed, follow the official instructions for your
+  operating system at
+  <a href="https://docs.docker.com/get-docker/">docs.docker.com/get-docker</a>.
+</p>
+
+<h3><span class="step-num">2</span> Start the agent</h3>
+<pre><code>docker compose up -d --build</code></pre>
+
+<p>
+  The agent will build, start, connect to the Bullseye server, and
+  automatically restart if the machine reboots or the process crashes.
+</p>
+
+<p><strong>RingCentral users:</strong> start with the SIP sidecar profile instead:</p>
+<pre><code>docker compose --profile ringcentral up -d --build</code></pre>
+
+<h3><span class="step-num">3</span> Check the logs</h3>
+<pre><code>docker logs -f bullseye-agent</code></pre>
+
+<p>You should see output similar to:</p>
+
+<pre><code>        ooooooooooo
+      oo           oo
+    oo   ooooooooo   oo
+   oo  oo         oo  oo
+  oo  oo   ooooo   oo  oo
+  oo  oo  oo   oo  oo  oo
+  oo  oo  oo * oo  oo  oo
+  oo  oo  oo   oo  oo  oo
+  oo  oo   ooooo   oo  oo
+   oo  oo         oo  oo
+    oo   ooooooooo   oo
+      oo           oo
+        ooooooooooo
+
+      B U L L S E Y E  v1.0.0
+
+12:00:01 INFO     Server:   configured
+12:00:01 INFO     Provider: twilio
+12:00:01 INFO     Connecting to server...
+12:00:02 INFO     ============================================================
+12:00:02 INFO     CONNECTED — agent is ready to receive tests
+12:00:02 INFO     ============================================================</code></pre>
+
+<p>Press <code>Ctrl+C</code> to stop tailing (the agent continues running in the background).</p>
+
+<div class="callout callout-success">
+  <div class="callout-title">You're done</div>
+  <p>
+    The agent is running and connected. It will receive and execute test calls
+    automatically. No further action is needed.
+  </p>
+</div>
+
+<h3>Common Docker commands</h3>
+
+<table>
+  <tr><th>Command</th><th>Description</th></tr>
+  <tr><td><code>docker compose up -d --build</code></td><td>Start or rebuild the agent</td></tr>
+  <tr><td><code>docker compose down</code></td><td>Stop the agent</td></tr>
+  <tr><td><code>docker compose restart</code></td><td>Restart (picks up <code>.env</code> changes)</td></tr>
+  <tr><td><code>docker logs -f bullseye-agent</code></td><td>Follow logs in real time</td></tr>
+  <tr><td><code>docker logs --tail 100 bullseye-agent</code></td><td>Show last 100 log lines</td></tr>
+</table>
+
+
+<h2 id="install-python">7. Install with Python (Alternative)</h2>
+
+<p>Use this method if Docker is not available on your machine.</p>
+
+<h3><span class="step-num">1</span> Verify Python version</h3>
+<pre><code>python3 --version    # must be 3.10 or newer</code></pre>
+
+<h3><span class="step-num">2</span> Create a virtual environment and install dependencies</h3>
+<pre><code>python3 -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
+pip install -r requirements.txt</code></pre>
+
+<h3><span class="step-num">3</span> Start the agent</h3>
+<pre><code>python3 main.py</code></pre>
+
+<div class="callout callout-warning">
+  <div class="callout-title">Keep it running</div>
+  <p>
+    When running from source, use a process supervisor (<code>systemd</code>,
+    <code>launchd</code>, <code>supervisord</code>) so the agent restarts
+    automatically after reboots or crashes. See the README for a sample
+    <code>systemd</code> unit file.
+  </p>
+</div>
+
+<div class="page-break"></div>
+
+<h2 id="verify">8. Verify the Connection</h2>
+
+<p>Once started, the agent should show:</p>
+
+<pre><code>CONNECTED — agent is ready to receive tests</code></pre>
+
+<p>
+  If you see this message, the agent has successfully authenticated with the
+  Bullseye server and is waiting for test instructions. No further
+  configuration is needed.
+</p>
+
+<p>To confirm a test call works end-to-end, contact your Bullseye
+representative and ask them to queue a test for your agent. You will see
+the call progress in the logs:</p>
+
+<pre><code>20:11:58 INFO     Test abc-123: +15555550100 -> +15555550199
+20:11:58 INFO     Dialing +15555550100 -> +15555550199
+20:11:58 INFO     Call initiated: sid=CA1234567890abcdef
+20:12:12 INFO     Test abc-123: status=answered duration=14.5s
+20:12:13 INFO     Test abc-123: result sent (answered)</code></pre>
+
+
+<h2 id="configuration-reference">9. Configuration Reference</h2>
+
+<p>All configuration is done through the <code>.env</code> file.</p>
+
+<h3>Log verbosity</h3>
+<p>Set <code>LOG_LEVEL</code> to control how much the agent logs:</p>
+
+<table>
+  <tr><th>Value</th><th>Output</th></tr>
+  <tr><td><code>INFO</code> (default)</td><td>Connection status, test start and result</td></tr>
+  <tr><td><code>DEBUG</code></td><td>Everything, including per-poll provider status updates</td></tr>
+  <tr><td><code>WARNING</code></td><td>Only errors, reconnections, and unexpected events</td></tr>
+</table>
+
+<h3>Insecure mode (local testing only)</h3>
+<p>
+  The agent refuses to connect to <code>http://</code> URLs by default because
+  the API key would be transmitted in cleartext. To override for local
+  development, set:
+</p>
+<pre><code>BULLSEYE_ALLOW_INSECURE=1</code></pre>
+<p>Do not use this in production.</p>
+
+
+<h2 id="troubleshooting">10. Troubleshooting</h2>
+
+<h3>"Invalid API key" or connection closes with code 4003</h3>
+<p>
+  Double-check <code>BULLSEYE_API_KEY</code> in your <code>.env</code> file.
+  It should start with <code>bse_</code>. Contact your Bullseye representative
+  if you believe the key is correct.
+</p>
+
+<h3>Agent keeps reconnecting</h3>
+<ul>
+  <li>Verify the server is reachable: <code>curl -v $BULLSEYE_SERVER_URL/docs</code></li>
+  <li>Confirm the URL starts with <code>https://</code></li>
+  <li>Check that outbound port 443 is not blocked by a firewall or proxy</li>
+</ul>
+
+<h3>"Error: Unsupported provider"</h3>
+<p>
+  <code>TELEPHONY_PROVIDER</code> must be exactly one of <code>bandwidth</code>,
+  <code>twilio</code>, <code>telnyx</code>, <code>ringcentral</code>,
+  <code>asterisk</code>, <code>freeswitch</code>, or <code>proprietary</code>
+  (lowercase, no quotes).
+</p>
+
+<h3>Twilio: authentication errors</h3>
+<p>
+  Use the primary <strong>Account SID</strong> and <strong>Auth Token</strong>
+  from the <a href="https://console.twilio.com">Twilio Console dashboard</a>,
+  not an API key (<code>SK...</code>). API keys have restricted permissions
+  that prevent call placement.
+</p>
+
+<h3>Bandwidth: calls fail immediately</h3>
+<p>
+  Verify your Bandwidth Voice Application has the correct Application ID and
+  that <code>BANDWIDTH_ANSWER_URL</code> in <code>.env</code> points to the
+  Bullseye server endpoint (<code>https://your-bullseye-server/bandwidth/answer</code>).
+</p>
+
+<h3>RingCentral: sidecar won't start</h3>
+<ul>
+  <li><strong>Docker:</strong> make sure you used <code>--profile ringcentral</code></li>
+  <li><strong>Python:</strong> verify Node.js 18+ is installed (<code>node --version</code>)</li>
+  <li>Check that an &ldquo;Other Phone&rdquo; device exists on the RingCentral extension</li>
+</ul>
+
+<h3>RingCentral: "No OtherPhone device found"</h3>
+<p>
+  Create one in the RingCentral Admin Portal &rarr; Phones &amp; Devices &rarr;
+  Add Device &rarr; Existing Phone.
+</p>
+
+<h3>Calls are not being placed</h3>
+<p>Check the logs for error messages after the test arrives. Common causes:</p>
+<ul>
+  <li>The "from" number is not assigned to your provider account</li>
+  <li>The account does not have outbound voice capability enabled</li>
+  <li>Provider credentials are invalid or expired</li>
+</ul>
+
+
+<h2 id="security">11. Security</h2>
+
+<h3>What is transmitted to the Bullseye server</h3>
+
+<p>The agent communicates <strong>only call status information</strong> to the
+Bullseye server:</p>
+
+<ul>
+  <li>Call progress events: <code>dialing</code>, <code>answered</code></li>
+  <li>Final call result: <code>answered</code>, <code>no_answer</code>,
+    <code>busy</code>, or <code>failed</code></li>
+  <li>Call duration (in seconds)</li>
+  <li>The provider's call ID (e.g. a Twilio Call SID)</li>
+  <li>A generic error message if the call failed (e.g. &ldquo;Call initiation
+    failed&rdquo;)</li>
+</ul>
+
+<p>That's it. The Bullseye server receives just enough information to know
+whether the phone number was reachable. No call data is stored on the
+Bullseye server or the test devices beyond the duration of the test. The
+phone numbers used to initiate and receive test calls are processed
+transiently to execute the test and are not retained.</p>
+
+<h3>What stays on your machine</h3>
+
+<div class="callout callout-success">
+  <div class="callout-title">Security &amp; Privacy</div>
+  <p>
+    Bullseye runs entirely on your infrastructure and uses your existing telecom
+    credentials to place test calls. Your API keys, tokens, and account IDs
+    never leave your environment. The only information sent to ARMOR&reg; is the
+    call status (e.g., spam label, blocked, delivered) and the phone number being
+    tested. No call content or recordings are ever collected. All connections are
+    encrypted with TLS and Armor Solutions is SOC 2 Type II compliant. You can
+    remove Bullseye from your environment at any time.
+  </p>
+</div>
+
+<h3>Encryption</h3>
+<p>
+  All communication between the agent and the Bullseye server uses
+  TLS-encrypted WebSocket connections (<code>wss://</code>). The agent
+  refuses to connect over unencrypted channels by default.
+</p>
+
+<h3>Agent isolation</h3>
+<p>
+  Each agent authenticates with a unique API key and only receives tests
+  addressed to its own agent ID. Agents cannot see other agents' tests
+  or access any server-side data.
+</p>
+
+<h3>Protecting the configuration file</h3>
+<ul>
+  <li>Restrict file permissions: <code>chmod 600 .env</code></li>
+  <li>Never commit <code>.env</code> to version control (excluded by
+  <code>.gitignore</code> and <code>.dockerignore</code> by default)</li>
+  <li>Each machine running an agent should have its own <code>.env</code></li>
+</ul>
+
+<h3>Limiting exposure</h3>
+<p>To bound the impact if the Bullseye server or API key were compromised:</p>
+<ul>
+  <li>Use a dedicated provider subaccount for Bullseye testing</li>
+  <li>Set monthly spend caps in your provider's dashboard</li>
+  <li>Restrict international dialing if you only test domestic numbers</li>
+</ul>
+
+<h3>Log retention</h3>
+<p>
+  Logs include phone numbers, which may be PII under GDPR, CCPA, or
+  similar regulations. Docker log rotation is pre-configured at
+  10 MB &times; 5 files. Adjust in <code>docker-compose.yml</code> if
+  your retention policy differs.
+</p>
+
+
+<hr>
+
+
+<h2 id="support">12. Support</h2>
+
+<p>If you encounter issues, contact your Bullseye representative with:</p>
+<ul>
+  <li>Agent version (displayed at startup)</li>
+  <li>The last 50 lines of logs (<code>docker logs --tail 50 bullseye-agent</code>)</li>
+  <li>The first 12 characters of your API key (e.g. <code>bse_a1b2c3d4</code>)</li>
+</ul>
+
+
+<div class="footer">
+  Bullseye Agent v1.0.0 &mdash; Installation Guide &mdash; &copy; 2026 PhoneBurner
+</div>
+
+</body>
+</html>

@@ -1,0 +1,43 @@
+# Bullseye agent + embedded Asterisk for SBC deployments.
+#
+# Use this compose file (instead of agent/docker-compose.yml) when the
+# customer wants to originate calls via SIP to their own SBC. The
+# Asterisk container holds the SIP trunk; the agent talks to Asterisk
+# via ARI on localhost:8088.
+#
+# Requires Linux host (network_mode: host). On macOS, use port-mapping
+# variant — see README.md.
+
+services:
+  bullseye-asterisk:
+    image: andrius/asterisk:18-current
+    container_name: bullseye-asterisk
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./asterisk/templates:/etc/asterisk/templates:ro
+      - ./asterisk/entrypoint.sh:/entrypoint.sh:ro
+    env_file:
+      - .env
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  bullseye-agent:
+    build: ..
+    container_name: bullseye-agent
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    depends_on:
+      bullseye-asterisk:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

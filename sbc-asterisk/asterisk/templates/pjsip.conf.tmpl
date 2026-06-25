@@ -1,0 +1,56 @@
+; ───────────────────────────────────────────────────────────────────
+; PJSIP configuration for SBC trunk.
+; Rendered from env vars by entrypoint.sh — placeholders are ${VAR}.
+; ───────────────────────────────────────────────────────────────────
+
+[transport-udp]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+
+[transport-tcp]
+type=transport
+protocol=tcp
+bind=0.0.0.0:5060
+
+; Uncomment + provide cert paths if your SBC requires TLS:
+; [transport-tls]
+; type=transport
+; protocol=tls
+; bind=0.0.0.0:5061
+; cert_file=/etc/asterisk/keys/cert.pem
+; priv_key_file=/etc/asterisk/keys/key.pem
+
+; ───── SBC trunk ─────────────────────────────────────────────────
+
+[sbc]
+type=endpoint
+transport=transport-${SBC_TRANSPORT}
+context=from-sbc
+disallow=all
+allow=ulaw
+allow=alaw
+direct_media=no
+from_user=${SBC_FROM_USER}
+from_domain=${SBC_FROM_DOMAIN}
+outbound_auth=sbc-auth
+aors=sbc-aor
+
+[sbc-auth]
+type=auth
+auth_type=userpass
+username=${SBC_USERNAME}
+password=${SBC_PASSWORD}
+
+[sbc-aor]
+type=aor
+contact=sip:${SBC_HOST}:${SBC_PORT}
+qualify_frequency=60
+
+; IP-based identification — accepts inbound SIP from the SBC's IP.
+; Even if you don't expect inbound traffic, this prevents stray INVITEs
+; from elsewhere from matching.
+[sbc-identify]
+type=identify
+endpoint=sbc
+match=${SBC_HOST}
