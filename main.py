@@ -178,7 +178,17 @@ async def main():
     # support cases (LOG_LEVEL=DEBUG).
     log.info("Server:   configured")
     log.debug("Server:   %s", ws_url)
-    log.info("Provider: %s", provider_name)
+
+    try:
+        provider.preflight()
+        log.info("Provider: %s (preflight OK)", provider_name)
+    except Exception as e:
+        log.warning("Provider: %s (preflight FAILED)", provider_name)
+        log.warning("  Reason: %s", e)
+        log.warning("  The agent will still connect to the Bullseye server,")
+        log.warning("  but call attempts will likely fail until this is resolved.")
+        log.warning("  Common causes: firewall blocking outbound to the provider API,")
+        log.warning("  wrong credentials, or a proxy interfering with TLS.")
 
     delay = RECONNECT_DELAY
     while True:

@@ -30,3 +30,17 @@ class TelephonyProvider(ABC):
           ("done",     {"status": ..., "duration": ..., "provider_call_id": ...})
         """
         pass
+
+    def preflight(self) -> None:
+        """Optional startup connectivity + credentials check.
+
+        Called after __init__ and before the agent connects to the Bullseye
+        server. Should perform a cheap round-trip to the provider's API to
+        surface network / firewall / credential problems at agent start
+        instead of at first test-call time.
+
+        Raise any exception on failure; the caller logs a warning and lets
+        the agent continue (so it still shows up as connected on the server
+        for operator visibility). Default implementation is a no-op.
+        """
+        return

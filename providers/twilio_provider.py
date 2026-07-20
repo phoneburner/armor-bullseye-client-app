@@ -25,6 +25,13 @@ class TwilioProvider(TelephonyProvider):
             raise ValueError("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required")
         self.client = Client(account_sid, auth_token)
 
+    def preflight(self) -> None:
+        # Fetch the account resource: cheap, no side effects, exercises the
+        # full path — DNS to api.twilio.com, TCP + TLS, HTTP request/response,
+        # and Basic Auth credentials. If this succeeds, real call attempts
+        # should reach Twilio too.
+        self.client.api.account.fetch()
+
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
         log.info("Dialing %s -> %s", from_number, to_number)
         try:
