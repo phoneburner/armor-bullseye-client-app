@@ -303,7 +303,7 @@
 <div class="header">
   <h1>Bullseye Agent</h1>
   <div class="subtitle">Installation &amp; Configuration Guide</div>
-  <div class="version">v1.0.4</div>
+  <div class="version">v1.0.5</div>
 </div>
 
 <nav class="toc">
@@ -432,23 +432,23 @@
 <p>Download the latest agent package:</p>
 
 <div class="download-row">
-  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.4.tar.gz" class="download-btn">
-    <span class="arrow">&darr;</span> bullseye-agent-1.0.4.tar.gz
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.5.tar.gz" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.5.tar.gz
   </a>
-  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.4.zip" class="download-btn">
-    <span class="arrow">&darr;</span> bullseye-agent-1.0.4.zip
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.5.zip" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.5.zip
   </a>
 </div>
 
 <p>Extract the archive:</p>
 
 <pre><code># Linux / macOS
-tar xzf bullseye-agent-1.0.4.tar.gz
-cd armor-bullseye-client-app-1.0.4
+tar xzf bullseye-agent-1.0.5.tar.gz
+cd armor-bullseye-client-app-1.0.5
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.4.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.4</code></pre>
+Expand-Archive bullseye-agent-1.0.5.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.5</code></pre>
 
 <p>You should see the following files:</p>
 
@@ -548,7 +548,8 @@ needed.</p>
   <p>
     Bandwidth requires a webhook URL for call control. The
     <code>BANDWIDTH_ANSWER_URL</code> points to a Bullseye server endpoint
-    that tells Bandwidth to hold the call for 10 seconds and hang up. This
+    that tells Bandwidth to hold the call for a randomized 35-55 seconds
+    (varied per call so Bullseye traffic doesn't look like automation) and hang up. This
     is pre-configured in <code>.env.example</code> &mdash; you don't need
     to change it.
   </p>
@@ -689,7 +690,7 @@ needed.</p>
   <li>ARI enabled (<code>ari.conf</code>) with a user the agent can authenticate as</li>
   <li>HTTP server enabled (<code>http.conf</code>) &mdash; usually port 8088</li>
   <li>A dialplan landing-pad context for the call to enter after the originate
-    (a simple <code>Answer() / Wait(10) / Hangup()</code> context is enough)</li>
+    (see below &mdash; each call is held open for a randomized 35-55 seconds)</li>
   <li>An outbound SIP trunk or endpoint configured for the destinations
     you want to dial</li>
 </ul>
@@ -838,7 +839,7 @@ implementation determines what your environment needs.</p>
       oo           oo
         ooooooooooo
 
-      B U L L S E Y E  v1.0.4
+      B U L L S E Y E  v1.0.5
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -1130,7 +1131,7 @@ transiently to execute the test and are not retained.</p>
 
 
 <div class="footer">
-  Bullseye Agent v1.0.4 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
+  Bullseye Agent v1.0.5 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
 </div>
 
 </body>

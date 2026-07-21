@@ -54,7 +54,7 @@ import socket
 import logging
 import uuid as uuidlib
 from typing import Optional
-from providers.base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
+from providers.base import TelephonyProvider, CallResult, CallEventCallback, classify_generic, random_hold_seconds
 
 log = logging.getLogger(__name__)
 
@@ -196,7 +196,8 @@ class FreeSwitchProvider(TelephonyProvider):
                 f"{{origination_uuid={call_uuid},"
                 f"origination_caller_id_number={from_number}}}"
             )
-            esl.send(f"bgapi originate {dial_vars}{endpoint} &sleep(10000)")
+            hold_ms = random_hold_seconds() * 1000
+            esl.send(f"bgapi originate {dial_vars}{endpoint} &sleep({hold_ms})")
             # bgapi reply (Job-UUID) — we don't need it; we match on Unique-ID.
             esl.read_event(timeout=5)
 

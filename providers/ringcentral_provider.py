@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 import requests
-from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
+from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic, random_hold_seconds
 
 
 def _classify_http(status: int | None, body: str | None) -> tuple[str, str]:
@@ -115,16 +115,17 @@ class RingCentralProvider(TelephonyProvider):
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
         log.info("Dialing %s -> %s via RingCentral", from_number, to_number)
 
+        hold = random_hold_seconds()
         try:
             resp = requests.post(
                 f"{self.base_url}/call",
-                json={"to": to_number},
+                json={"to": to_number, "hold_seconds": hold},
                 timeout=10,
             )
             resp.raise_for_status()
             data = resp.json()
             call_id = data["call_id"]
-            log.info("Call initiated: call_id=%s", call_id)
+            log.info("Call initiated: call_id=%s (hold %ds)", call_id, hold)
         except requests.HTTPError as e:
             log.error("Dial failed: %s", e)
             category, msg = _classify_http(e.response.status_code if e.response is not None else None, None)

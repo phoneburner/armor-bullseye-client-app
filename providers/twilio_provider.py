@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from twilio.rest import Client
-from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
+from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic, random_hold_seconds
 
 log = logging.getLogger("bullseye.twilio")
 
@@ -63,12 +63,13 @@ class TwilioProvider(TelephonyProvider):
         self.client.api.account.fetch()
 
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
-        log.info("Dialing %s -> %s", from_number, to_number)
+        hold = random_hold_seconds()
+        log.info("Dialing %s -> %s (hold %ds)", from_number, to_number, hold)
         try:
             call = self.client.calls.create(
                 to=to_number,
                 from_=from_number,
-                twiml='<Response><Pause length="10"/><Hangup/></Response>',
+                twiml=f'<Response><Pause length="{hold}"/><Hangup/></Response>',
             )
             call_sid = call.sid
             log.info("Call initiated: sid=%s", call_sid)

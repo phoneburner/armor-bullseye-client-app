@@ -35,7 +35,8 @@ Asterisk-side prerequisites
 
        [bullseye-landing]
        exten => s,1,Answer()
-        same => n,Wait(10)
+        same => n,Set(HOLD=${RAND(35,55)})
+        same => n,Wait(${HOLD})
         same => n,Hangup()
 
    Then set `ASTERISK_CONTEXT=bullseye-landing` and

@@ -1,6 +1,6 @@
 # Bullseye Agent — Installation & Configuration Guide
 
-**Version 1.0.4**
+**Version 1.0.5**
 
 This is the Markdown version of the install guide. An HTML version
 (`installation-guide.html`) covers the same material.
@@ -68,19 +68,19 @@ Before you begin, make sure you have:
 
 Download the latest agent release from GitHub:
 
-- [bullseye-agent-1.0.4.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.4.tar.gz)
-- [bullseye-agent-1.0.4.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.4.zip)
+- [bullseye-agent-1.0.5.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.5.tar.gz)
+- [bullseye-agent-1.0.5.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.5.zip)
 
 Extract:
 
 ```bash
 # Linux / macOS
-tar xzf bullseye-agent-1.0.4.tar.gz
-cd armor-bullseye-client-app-1.0.4
+tar xzf bullseye-agent-1.0.5.tar.gz
+cd armor-bullseye-client-app-1.0.5
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.4.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.4
+Expand-Archive bullseye-agent-1.0.5.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.5
 ```
 
 You should see:
@@ -211,7 +211,14 @@ talks to Asterisk via ARI (Asterisk REST Interface) over HTTP + WebSocket.
 - An Asterisk instance reachable from the agent host.
 - ARI enabled (`ari.conf`) with a user the agent can authenticate as.
 - HTTP server enabled (`http.conf`) — usually port 8088.
-- A dialplan landing-pad context for the call to enter after the originate (a simple `Answer() / Wait(10) / Hangup()` context is enough).
+- A dialplan landing-pad context for the call to enter after the originate. The template holds each call open for a randomized 35-55 seconds:
+  ```
+  [bullseye-landing]
+  exten => s,1,Answer()
+   same => n,Set(HOLD=${RAND(35,55)})
+   same => n,Wait(${HOLD})
+   same => n,Hangup()
+  ```
 - An outbound SIP trunk or endpoint configured for the destinations you want to dial.
 
 | Variable | Description |
@@ -350,7 +357,7 @@ after reboots or crashes. The README has a sample `systemd` unit.
 After starting the agent, check the startup log:
 
 ```
-B U L L S E Y E  v1.0.4
+B U L L S E Y E  v1.0.5
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -494,4 +501,4 @@ For help, contact your Bullseye representative. Include in your message:
 
 ---
 
-*Bullseye Agent v1.0.4 — Installation Guide — © 2026 Armor Solutions, Inc.*
+*Bullseye Agent v1.0.5 — Installation Guide — © 2026 Armor Solutions, Inc.*

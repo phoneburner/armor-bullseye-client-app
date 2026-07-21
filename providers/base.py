@@ -1,7 +1,21 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable
+import random
 import socket
+
+
+# Post-answer hold window (seconds). We keep each answered call up for a
+# random duration in this range instead of a fixed value — a fixed 10-second
+# hold looks like automated traffic to spam-detection systems and can bias
+# the very signal Bullseye is trying to measure.
+HOLD_MIN_SECONDS = 35
+HOLD_MAX_SECONDS = 55
+
+
+def random_hold_seconds() -> int:
+    """Pick a random hold duration in the configured range, inclusive."""
+    return random.randint(HOLD_MIN_SECONDS, HOLD_MAX_SECONDS)
 
 
 # Controlled vocabulary for error_category. Providers should pick one of these

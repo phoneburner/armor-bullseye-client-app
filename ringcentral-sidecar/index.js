@@ -3,7 +3,10 @@ import Softphone from "ringcentral-softphone";
 import express from "express";
 
 const PORT = parseInt(process.env.SIDECAR_PORT || "3000");
-const CALL_HOLD_SECONDS = parseInt(process.env.CALL_HOLD_SECONDS || "10");
+// Fallback if the caller doesn't specify hold_seconds in the POST body.
+// The agent picks a random value per call to avoid a fixed-duration
+// signature; this default only applies to direct sidecar callers.
+const CALL_HOLD_SECONDS_DEFAULT = parseInt(process.env.CALL_HOLD_SECONDS || "45");
 
 const RC_SERVER = process.env.RINGCENTRAL_SERVER_URL || "https://platform.ringcentral.com";
 const RC_CLIENT_ID = process.env.RINGCENTRAL_CLIENT_ID;
@@ -64,8 +67,11 @@ async function initSoftphone() {
 
 // --- Call Management ---
 
-function placeCall(toNumber) {
+function placeCall(toNumber, holdSeconds) {
   const callId = `rc-${++callCounter}-${Date.now()}`;
+  const hold = Number.isFinite(holdSeconds) && holdSeconds > 0
+    ? holdSeconds
+    : CALL_HOLD_SECONDS_DEFAULT;
 
   calls.set(callId, {
     status: "dialing",
@@ -81,7 +87,7 @@ function placeCall(toNumber) {
   (async () => {
     try {
       const session = await softphone.call(toNumber);
-      console.log(`[${callId}] Ringing ${toNumber}`);
+      console.log(`[${callId}] Ringing ${toNumber} (hold ${hold}s)`);
 
       let hangupTimer = null;
 
@@ -94,7 +100,7 @@ function placeCall(toNumber) {
         hangupTimer = setTimeout(() => {
           console.log(`[${callId}] Hold time elapsed, hanging up`);
           try { session.hangup(); } catch (_) {}
-        }, CALL_HOLD_SECONDS * 1000);
+        }, hold * 1000);
       });
 
       session.once("busy", () => {
@@ -118,7 +124,8 @@ function placeCall(toNumber) {
         console.log(`[${callId}] Disposed — final status: ${call.status}`);
       });
 
-      // Safety timeout: if nothing happens in 60s, clean up
+      // Safety timeout: ring budget + hold + slack.
+      const safetyTimeoutMs = (hold + 45) * 1000;
       setTimeout(() => {
         const call = calls.get(callId);
         if (call && !call.endTime) {
@@ -128,7 +135,7 @@ function placeCall(toNumber) {
           try { session.hangup(); } catch (_) {}
           console.log(`[${callId}] Safety timeout — final status: ${call.status}`);
         }
-      }, 60000);
+      }, safetyTimeoutMs);
 
     } catch (err) {
       const call = calls.get(callId);
@@ -159,14 +166,14 @@ app.post("/call", (req, res) => {
     return res.status(503).json({ error: "Softphone not yet registered" });
   }
 
-  const { to } = req.body;
+  const { to, hold_seconds } = req.body;
   if (!to) {
     return res.status(400).json({ error: "Missing 'to' field" });
   }
 
   // Strip leading + for SIP dialing (RC expects country code without +)
   const toClean = to.startsWith("+") ? to.slice(1) : to;
-  const callId = placeCall(toClean);
+  const callId = placeCall(toClean, hold_seconds);
 
   res.status(201).json({
     call_id: callId,

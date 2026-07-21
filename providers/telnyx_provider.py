@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from telnyx import Client
-from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
+from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic, random_hold_seconds
 
 log = logging.getLogger("bullseye.telnyx")
 
@@ -61,7 +61,9 @@ class TelnyxProvider(TelephonyProvider):
             return CallResult(status="failed", error_message=msg, error_category=category)
 
         start_time = time.time()
-        max_wait = 60
+        # Telnyx events have a ~15-20s delay; hold is up to 55s; total budget
+        # needs to cover both plus some ring time.
+        max_wait = 150
         poll_interval = 3
         was_answered = False
         call_ended = False
@@ -81,8 +83,9 @@ class TelnyxProvider(TelephonyProvider):
                         call_ended = True
 
                 if was_answered:
-                    log.info("Call answered, hanging up")
-                    time.sleep(2)
+                    hold = random_hold_seconds()
+                    log.info("Call answered, holding for %ds", hold)
+                    time.sleep(hold)
                     try:
                         self.client.calls.actions.hangup(call_control_id)
                     except Exception:
