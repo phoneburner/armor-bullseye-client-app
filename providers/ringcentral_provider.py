@@ -35,6 +35,9 @@ class RingCentralProvider(TelephonyProvider):
         self.base_url = os.environ.get("RINGCENTRAL_SIDECAR_URL", DEFAULT_SIDECAR_URL).rstrip("/")
         self.port = int(self.base_url.rsplit(":", 1)[-1].split("/")[0]) if ":" in self.base_url else 3000
         self._sidecar_process = None
+        # Optional shared secret. If the sidecar is bound on a non-loopback
+        # interface it requires this; on loopback it's optional.
+        self.auth_token = os.environ.get("SIDECAR_AUTH_TOKEN", "")
 
         # Check if required RC env vars are set
         for var in ("RINGCENTRAL_CLIENT_ID", "RINGCENTRAL_CLIENT_SECRET", "RINGCENTRAL_JWT_TOKEN"):
@@ -44,10 +47,25 @@ class RingCentralProvider(TelephonyProvider):
         # If sidecar is already running (Docker mode), just verify health
         if self._sidecar_healthy():
             log.info("Connected to existing RingCentral sidecar at %s", self.base_url)
+            self._cache_registered_number()
             return
 
         # Not running — try to start it (Python-from-source mode)
         self._start_sidecar()
+        self._cache_registered_number()
+
+    def _auth_headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.auth_token}"} if self.auth_token else {}
+
+    def _cache_registered_number(self) -> None:
+        """Fetch the number the sidecar registered as, for from_number validation."""
+        self.registered_number = None
+        try:
+            resp = requests.get(f"{self.base_url}/health", timeout=5)
+            resp.raise_for_status()
+            self.registered_number = resp.json().get("registeredNumber")
+        except Exception as e:
+            log.warning("Could not fetch RingCentral registered number: %s", e)
 
     def _sidecar_healthy(self) -> bool:
         try:
@@ -115,11 +133,33 @@ class RingCentralProvider(TelephonyProvider):
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
         log.info("Dialing %s -> %s via RingCentral", from_number, to_number)
 
+        # RingCentral originates from whichever number the sidecar's SIP
+        # session is registered as — you can't pick a different caller
+        # ID per call. If the requester asked for a different from_number,
+        # fail loudly so a Bullseye result never gets attributed to a
+        # number that wasn't actually the sender.
+        if self.registered_number:
+            asked = from_number.lstrip("+")
+            registered = str(self.registered_number).lstrip("+")
+            if asked != registered:
+                msg = (
+                    f"RingCentral is registered as {registered!r} but this test "
+                    f"asked to originate from {asked!r}. RingCentral cannot vary "
+                    "the caller ID per call. Aborting so the result isn't misattributed."
+                )
+                log.error(msg)
+                return CallResult(
+                    status="failed",
+                    error_message="RingCentral from-number mismatch",
+                    error_category="invalid_from_number",
+                )
+
         hold = random_hold_seconds()
         try:
             resp = requests.post(
                 f"{self.base_url}/call",
                 json={"to": to_number, "hold_seconds": hold},
+                headers=self._auth_headers(),
                 timeout=10,
             )
             resp.raise_for_status()
@@ -146,7 +186,7 @@ class RingCentralProvider(TelephonyProvider):
         while time.time() - start_time < max_wait:
             time.sleep(poll_interval)
             try:
-                resp = requests.get(f"{self.base_url}/call/{call_id}", timeout=5)
+                resp = requests.get(f"{self.base_url}/call/{call_id}", headers=self._auth_headers(), timeout=5)
                 data = resp.json()
                 status = data["status"]
                 duration = data["duration"]

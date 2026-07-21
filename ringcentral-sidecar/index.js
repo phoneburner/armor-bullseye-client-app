@@ -3,10 +3,21 @@ import Softphone from "ringcentral-softphone";
 import express from "express";
 
 const PORT = parseInt(process.env.SIDECAR_PORT || "3000");
+// Bind to loopback by default. If someone genuinely needs to reach the
+// sidecar from another host (e.g., Docker service-to-service on a private
+// network), they must explicitly set SIDECAR_BIND=0.0.0.0 AND
+// SIDECAR_AUTH_TOKEN.
+const BIND = process.env.SIDECAR_BIND || "127.0.0.1";
+const AUTH_TOKEN = process.env.SIDECAR_AUTH_TOKEN || "";
+
 // Fallback if the caller doesn't specify hold_seconds in the POST body.
 // The agent picks a random value per call to avoid a fixed-duration
 // signature; this default only applies to direct sidecar callers.
 const CALL_HOLD_SECONDS_DEFAULT = parseInt(process.env.CALL_HOLD_SECONDS || "45");
+// Hard bounds — protect against a bug or malicious caller asking for a
+// 24-hour hold.
+const CALL_HOLD_MIN_SECONDS = 1;
+const CALL_HOLD_MAX_SECONDS = 120;
 
 const RC_SERVER = process.env.RINGCENTRAL_SERVER_URL || "https://platform.ringcentral.com";
 const RC_CLIENT_ID = process.env.RINGCENTRAL_CLIENT_ID;
@@ -15,6 +26,16 @@ const RC_JWT = process.env.RINGCENTRAL_JWT_TOKEN;
 
 if (!RC_CLIENT_ID || !RC_CLIENT_SECRET || !RC_JWT) {
   console.error("Error: RINGCENTRAL_CLIENT_ID, RINGCENTRAL_CLIENT_SECRET, and RINGCENTRAL_JWT_TOKEN are required");
+  process.exit(1);
+}
+
+if (BIND !== "127.0.0.1" && BIND !== "localhost" && !AUTH_TOKEN) {
+  console.error(
+    `Refusing to bind on ${BIND} without SIDECAR_AUTH_TOKEN. ` +
+    "The sidecar can place chargeable calls; requiring a token when it's " +
+    "not loopback-only prevents anyone with network access from placing calls. " +
+    "Either set SIDECAR_BIND=127.0.0.1 (default) or set a strong SIDECAR_AUTH_TOKEN."
+  );
   process.exit(1);
 }
 
@@ -67,11 +88,16 @@ async function initSoftphone() {
 
 // --- Call Management ---
 
-function placeCall(toNumber, holdSeconds) {
-  const callId = `rc-${++callCounter}-${Date.now()}`;
-  const hold = Number.isFinite(holdSeconds) && holdSeconds > 0
-    ? holdSeconds
+function clampHold(requested) {
+  const n = Number.isFinite(requested) && requested > 0
+    ? requested
     : CALL_HOLD_SECONDS_DEFAULT;
+  return Math.max(CALL_HOLD_MIN_SECONDS, Math.min(CALL_HOLD_MAX_SECONDS, n));
+}
+
+function placeCall(toNumber, holdSecondsRequested) {
+  const callId = `rc-${++callCounter}-${Date.now()}`;
+  const hold = clampHold(holdSecondsRequested);
 
   calls.set(callId, {
     status: "dialing",
@@ -117,9 +143,7 @@ function placeCall(toNumber, holdSeconds) {
         const call = calls.get(callId);
         if (!call.endTime) {
           call.endTime = Date.now();
-          // If still dialing when disposed, it's a no-answer/timeout
           if (call.status === "dialing") call.status = "no_answer";
-          // If answered, keep status as answered
         }
         console.log(`[${callId}] Disposed — final status: ${call.status}`);
       });
@@ -153,6 +177,20 @@ function placeCall(toNumber, holdSeconds) {
 
 const app = express();
 app.use(express.json());
+
+// Optional shared-secret auth. If SIDECAR_AUTH_TOKEN is set, every
+// non-health request must send Authorization: Bearer <token>.  Health
+// is unauthenticated so ops probes work; it exposes no chargeable action.
+app.use((req, res, next) => {
+  if (req.path === "/health") return next();
+  if (!AUTH_TOKEN) return next();
+  const header = req.get("Authorization") || "";
+  const expected = `Bearer ${AUTH_TOKEN}`;
+  if (header !== expected) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+});
 
 app.get("/health", (_req, res) => {
   res.json({
@@ -214,9 +252,9 @@ async function main() {
     process.exit(1);
   }
 
-  const host = process.env.SIDECAR_BIND || "0.0.0.0";
-  app.listen(PORT, host, () => {
-    console.log(`Sidecar listening on http://${host}:${PORT}`);
+  app.listen(PORT, BIND, () => {
+    console.log(`Sidecar listening on http://${BIND}:${PORT}` +
+      (AUTH_TOKEN ? " (auth required)" : " (loopback-only, no auth)"));
   });
 }
 

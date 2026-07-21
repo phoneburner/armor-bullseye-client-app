@@ -2,8 +2,9 @@
 # net-check — run a network diagnostic for the Bullseye agent.
 #
 # Reads BULLSEYE_SERVER_URL and TELEPHONY_PROVIDER from the environment
-# and probes each hop: DNS -> TCP -> TLS -> HTTP. Prints a PASS / FAIL
-# for each step so support can pinpoint where things are broken.
+# and probes each hop: DNS -> TCP -> (TLS -> HTTP for HTTPS endpoints).
+# Prints a PASS / FAIL per step so support can pinpoint where things
+# are broken.
 #
 # Usage (inside the container):
 #   net-check
@@ -31,10 +32,37 @@ skip()  { printf "  ${DIM}SKIP${RESET}  %s  ${DIM}(%s)${RESET}\n" "$1" "$2"; }
 head1() { printf "\n${BOLD}%s${RESET}\n" "$1"; }
 head2() { printf "\n${BOLD}--- %s ---${RESET}\n" "$1"; }
 
-check_host() {
-    # check_host <label> <host> <port>
-    local label="$1" host="$2" port="$3"
+# Strip userinfo (user:pass@) from a URL so we don't leak proxy creds
+# into support tickets.  Any query-string tokens still need to be
+# reviewed manually before sharing, but the userinfo form is where the
+# common Bad Times come from.
+redact_url() {
+    # sed -E: match scheme://, drop any user[:pass]@ segment, keep the rest.
+    printf '%s' "$1" | sed -E 's|^([^:]+://)[^/@]+@|\1<redacted>@|'
+}
 
+check_tcp() {
+    # check_tcp <label> <host> <port>
+    # For non-HTTPS endpoints: just DNS + TCP reachability.
+    local label="$1" host="$2" port="$3"
+    if getent hosts "$host" >/dev/null 2>&1; then
+        pass "DNS resolves ${label} (${host})"
+    else
+        fail "DNS lookup failed for ${host}" "check CoreDNS / cluster DNS policy"
+        return
+    fi
+
+    if nc -z -w 5 "$host" "$port" >/dev/null 2>&1; then
+        pass "TCP reachable ${label} (${host}:${port})"
+    else
+        fail "TCP to ${host}:${port} blocked or reset" "firewall / NetworkPolicy / security group / egress proxy"
+    fi
+}
+
+check_https() {
+    # check_https <label> <host> <port>
+    # For HTTPS endpoints: DNS + TCP + TLS + HTTP HEAD.
+    local label="$1" host="$2" port="$3"
     if getent hosts "$host" >/dev/null 2>&1; then
         pass "DNS resolves ${label} (${host})"
     else
@@ -49,28 +77,19 @@ check_host() {
         return
     fi
 
-    # Use curl for a real TLS + HTTP check.  --head keeps the response
-    # small; --max-time bounds the wait; -sS shows errors but suppresses
-    # the progress bar.
-    if [ "$port" = "443" ] || [ "$port" = "8089" ]; then
-        local scheme="https"
+    # Real TLS + HTTP HEAD.
+    local url
+    if [ "$port" = "443" ]; then
+        url="https://${host}"
     else
-        local scheme="http"
+        url="https://${host}:${port}"
     fi
-
-    local url="${scheme}://${host}"
-    if [ "$port" != "443" ] && [ "$port" != "80" ]; then
-        url="${scheme}://${host}:${port}"
-    fi
-
     local http_out
-    http_out=$(curl -sS --head --max-time 8 -o /dev/null -w '%{http_code} %{ssl_verify_result} %{time_total}' "$url" 2>&1)
+    http_out=$(curl -sS --head --max-time 8 -o /dev/null -w '%{http_code}' "$url" 2>&1)
     local rc=$?
     if [ $rc -eq 0 ]; then
-        local code=${http_out%% *}
-        pass "TLS + HTTP ${label} responded (HTTP ${code})"
+        pass "TLS + HTTP ${label} responded (HTTP ${http_out})"
     else
-        # Common curl exit codes we translate to something readable.
         local hint
         case $rc in
             6)  hint="DNS problem" ;;
@@ -85,39 +104,74 @@ check_host() {
     fi
 }
 
+# Extract host from a URL. Handles http://, https://, ws://, wss://, with or
+# without an explicit port.
+url_host() {
+    printf '%s' "$1" | awk -F/ 'NF>=3 {print $3}' | awk -F: '{print $1}'
+}
+
+# Extract port from a URL. Falls back to $2 if the URL has no explicit port.
+url_port() {
+    local url="$1" default_port="$2"
+    local port
+    port=$(printf '%s' "$url" | awk -F/ 'NF>=3 {print $3}' | awk -F: '{print $2}')
+    if [ -z "$port" ]; then
+        printf '%s' "$default_port"
+    else
+        printf '%s' "$port"
+    fi
+}
+
+# Return "https" or "http" or "" from a URL scheme.
+url_scheme() {
+    printf '%s' "$1" | awk -F: '{print $1}'
+}
+
 head1 "Bullseye agent net-check"
 printf "${DIM}Ran from inside the agent's network namespace.${RESET}\n"
 
 head2 "Environment"
 printf "  TELEPHONY_PROVIDER : ${TELEPHONY_PROVIDER:-<unset>}\n"
 if [ -n "${BULLSEYE_SERVER_URL:-}" ]; then
-    # Redact everything after the scheme + host so this can be pasted safely.
-    server_display=$(printf '%s' "$BULLSEYE_SERVER_URL" | awk -F/ '{print $1"//"$3}')
-    printf "  BULLSEYE_SERVER_URL: ${server_display}\n"
+    # Redact userinfo; the redacted URL is safe to paste.
+    server_display=$(redact_url "$BULLSEYE_SERVER_URL")
+    printf "  BULLSEYE_SERVER_URL: %s\n" "$server_display"
 else
     printf "  BULLSEYE_SERVER_URL: ${YELLOW}<unset>${RESET}\n"
 fi
 
-# Show any proxy env vars — these are a common invisible cause of trouble.
-proxy_vars=""
+# Show any proxy env vars — a common invisible cause of trouble.  Redact
+# any user:pass@ from proxy URLs before printing.
+proxy_lines=""
 for v in HTTP_PROXY HTTPS_PROXY http_proxy https_proxy NO_PROXY no_proxy; do
     val="$(printenv "$v" 2>/dev/null || true)"
-    [ -n "$val" ] && proxy_vars="${proxy_vars}  ${v}=${val}\n"
+    if [ -n "$val" ]; then
+        safe="$(redact_url "$val")"
+        # Use printf %s (not $safe in the format string) to keep any user-
+        # controlled data out of the format specifier.
+        proxy_lines+="  ${v}=${safe}"$'\n'
+    fi
 done
-if [ -n "$proxy_vars" ]; then
-    printf "  ${YELLOW}Proxy env vars set — the container is going through a proxy:${RESET}\n"
-    printf "$proxy_vars"
+if [ -n "$proxy_lines" ]; then
+    printf "  ${YELLOW}Proxy env vars set — container is going through a proxy:${RESET}\n"
+    printf '%s' "$proxy_lines"
 else
     printf "  Proxy env vars     : none\n"
 fi
 
 # --- Bullseye server ---
+head2 "Bullseye server"
 if [ -n "${BULLSEYE_SERVER_URL:-}" ]; then
-    head2 "Bullseye server"
-    server_host=$(printf '%s' "$BULLSEYE_SERVER_URL" | awk -F/ '{print $3}' | awk -F: '{print $1}')
-    check_host "Bullseye server" "$server_host" 443
+    server_host=$(url_host "$BULLSEYE_SERVER_URL")
+    server_scheme=$(url_scheme "$BULLSEYE_SERVER_URL")
+    if [ "$server_scheme" = "https" ]; then
+        server_port=$(url_port "$BULLSEYE_SERVER_URL" 443)
+        check_https "Bullseye server" "$server_host" "$server_port"
+    else
+        server_port=$(url_port "$BULLSEYE_SERVER_URL" 80)
+        check_tcp "Bullseye server (http)" "$server_host" "$server_port"
+    fi
 else
-    head2 "Bullseye server"
     skip "Bullseye server check" "BULLSEYE_SERVER_URL not set"
 fi
 
@@ -125,32 +179,38 @@ fi
 head2 "Telephony provider"
 case "${TELEPHONY_PROVIDER:-}" in
     twilio)
-        check_host "Twilio REST API"          "api.twilio.com"          443
-        check_host "Twilio media (SIP TLS)"   "chunderw-vpc-gll.twilio.com" 443
+        check_https "Twilio REST API"        "api.twilio.com"          443
         ;;
     bandwidth)
-        check_host "Bandwidth Voice API"      "voice.bandwidth.com"     443
-        check_host "Bandwidth dashboard"      "dashboard.bandwidth.com" 443
+        check_https "Bandwidth Voice API"    "voice.bandwidth.com"     443
+        check_https "Bandwidth dashboard"    "dashboard.bandwidth.com" 443
         ;;
     telnyx)
-        check_host "Telnyx API"               "api.telnyx.com"          443
+        check_https "Telnyx API"             "api.telnyx.com"          443
         ;;
     ringcentral)
-        rc_host=$(printf '%s' "${RINGCENTRAL_SERVER_URL:-https://platform.ringcentral.com}" | awk -F/ '{print $3}' | awk -F: '{print $1}')
-        check_host "RingCentral platform"     "$rc_host"                443
+        rc_host=$(url_host "${RINGCENTRAL_SERVER_URL:-https://platform.ringcentral.com}")
+        check_https "RingCentral platform"   "$rc_host"                443
         ;;
     asterisk)
         if [ -n "${ASTERISK_ARI_URL:-}" ]; then
-            ari_host=$(printf '%s' "$ASTERISK_ARI_URL" | awk -F/ '{print $3}' | awk -F: '{print $1}')
-            ari_port=$(printf '%s' "$ASTERISK_ARI_URL" | awk -F/ '{print $3}' | awk -F: '{print ($2=="")?"8088":$2}')
-            check_host "Asterisk ARI"          "$ari_host"               "$ari_port"
+            ari_host=$(url_host "$ASTERISK_ARI_URL")
+            ari_scheme=$(url_scheme "$ASTERISK_ARI_URL")
+            if [ "$ari_scheme" = "https" ]; then
+                ari_port=$(url_port "$ASTERISK_ARI_URL" 443)
+                check_https "Asterisk ARI (https)" "$ari_host" "$ari_port"
+            else
+                ari_port=$(url_port "$ASTERISK_ARI_URL" 8088)
+                check_tcp "Asterisk ARI (http)"   "$ari_host" "$ari_port"
+            fi
         else
             skip "Asterisk ARI check" "ASTERISK_ARI_URL not set"
         fi
         ;;
     freeswitch)
         if [ -n "${FREESWITCH_HOST:-}" ]; then
-            check_host "FreeSWITCH ESL"        "$FREESWITCH_HOST"        "${FREESWITCH_PORT:-8021}"
+            # ESL is plain TCP, no HTTP — only DNS + TCP make sense.
+            check_tcp "FreeSWITCH ESL"        "$FREESWITCH_HOST"        "${FREESWITCH_PORT:-8021}"
         else
             skip "FreeSWITCH ESL check" "FREESWITCH_HOST not set"
         fi
@@ -164,4 +224,4 @@ case "${TELEPHONY_PROVIDER:-}" in
 esac
 
 printf "\n${BOLD}Done.${RESET}\n"
-printf "${DIM}If any check FAILed, share this whole output (it does not include credentials) with your Bullseye contact.${RESET}\n"
+printf "${DIM}If any check FAILed, share this whole output with your Bullseye contact. Proxy URLs above have been redacted; if you still see something that looks sensitive, strip it before sharing.${RESET}\n"

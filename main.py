@@ -36,6 +36,18 @@ MAX_RECONNECT_DELAY = 60
 HEARTBEAT_INTERVAL = 30
 MAX_WS_MESSAGE_SIZE = 64 * 1024
 
+# Cap on how many calls can run in parallel. Provider SDKs vary in
+# thread-safety; more importantly, most telco accounts throttle at some
+# small number of concurrent originates. Override with BULLSEYE_MAX_CONCURRENT_CALLS
+# if you really need to fan out.
+MAX_CONCURRENT_CALLS = int(os.environ.get("BULLSEYE_MAX_CONCURRENT_CALLS", "4"))
+_call_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
+
+# Test IDs currently in flight (or recently completed). Prevents the server
+# from re-dispatching the same test — either due to a reconnect race or a
+# retried delivery — while it's still executing.
+_inflight_tests: set[str] = set()
+
 BANNER = """
         ooooooooooo
       oo           oo
@@ -78,11 +90,29 @@ def get_config():
 
 
 async def handle_test(provider: TelephonyProvider, ws: websockets.ClientConnection, test_msg: dict):
-    """Run a single test: notify the server, place the call, stream events, report the result."""
+    """Run a single test: notify the server, place the call, stream events, report the result.
+
+    Bounded by _call_semaphore so a backlog can't spawn N simultaneous provider
+    calls, and deduped by _inflight_tests so a redelivered test doesn't dial
+    twice.
+    """
     test_id = test_msg["id"]
     from_number = test_msg["from_number"]
     to_number = test_msg["to_number"]
 
+    if test_id in _inflight_tests:
+        log.warning("Test %s already in flight; ignoring duplicate delivery", test_id)
+        return
+    _inflight_tests.add(test_id)
+
+    try:
+        async with _call_semaphore:
+            await _handle_test_inner(provider, ws, test_id, from_number, to_number)
+    finally:
+        _inflight_tests.discard(test_id)
+
+
+async def _handle_test_inner(provider, ws, test_id, from_number, to_number):
     await ws.send(json.dumps({"type": "start", "test_id": test_id}))
 
     event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()

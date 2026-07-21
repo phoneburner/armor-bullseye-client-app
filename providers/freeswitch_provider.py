@@ -49,12 +49,23 @@ Environment variables (see .env.example for the full template):
 """
 
 import os
+import re
 import time
 import socket
 import logging
 import uuid as uuidlib
 from typing import Optional
 from providers.base import TelephonyProvider, CallResult, CallEventCallback, classify_generic, random_hold_seconds
+
+
+# Numbers we accept.  ESL commands are terminated by newlines and interpret
+# `{}` and `,` as syntax; anything outside this pattern is refused before
+# it can be interpolated into a bgapi originate line.
+_E164 = re.compile(r"^\+?[1-9]\d{1,14}$")
+
+
+def _valid_number(n: str) -> bool:
+    return bool(n) and bool(_E164.match(n))
 
 log = logging.getLogger(__name__)
 
@@ -162,7 +173,10 @@ class FreeSwitchProvider(TelephonyProvider):
         self.port = int(os.environ.get("FREESWITCH_PORT", "8021"))
         self.password = os.environ["FREESWITCH_PASSWORD"]
         self.endpoint_template = os.environ["FREESWITCH_ENDPOINT_TEMPLATE"]
-        self.dial_timeout = int(os.environ.get("FREESWITCH_DIAL_TIMEOUT", "90"))
+        # Total budget for the call: must comfortably cover ring time +
+        # the longest possible hold (55s) + slack for FreeSWITCH event
+        # delivery. 180s default is intentional; can be tightened via env.
+        self.dial_timeout = int(os.environ.get("FREESWITCH_DIAL_TIMEOUT", "180"))
 
     def preflight(self) -> None:
         # Open an ESL connection, authenticate, close. Verifies host reachability,
@@ -180,6 +194,25 @@ class FreeSwitchProvider(TelephonyProvider):
         to_number: str,
         on_event: CallEventCallback | None = None,
     ) -> CallResult:
+        # Reject anything that isn't a plain E.164 number *before* we
+        # interpolate into the ESL command. ESL is a line-oriented protocol
+        # so a newline in from_number or to_number could inject a
+        # separate command (e.g. shutdown, api unload).
+        if not _valid_number(to_number):
+            log.error("FreeSWITCH: refusing non-E.164 to_number=%r", to_number)
+            return CallResult(
+                status="failed",
+                error_message="Destination number is not valid E.164",
+                error_category="invalid_to_number",
+            )
+        if not _valid_number(from_number):
+            log.error("FreeSWITCH: refusing non-E.164 from_number=%r", from_number)
+            return CallResult(
+                status="failed",
+                error_message="From-number is not valid E.164",
+                error_category="invalid_from_number",
+            )
+
         endpoint = self.endpoint_template.format(to_number=to_number)
         call_uuid = str(uuidlib.uuid4())
         esl = None

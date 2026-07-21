@@ -31,14 +31,28 @@ def _classify(e: BaseException) -> tuple[str, str]:
             return ("auth_error",
                     "Twilio credentials rejected — check TWILIO_ACCOUNT_SID "
                     "and TWILIO_AUTH_TOKEN.")
-        if code in (21212, 21214, 21215, 21606, 21611):
+        # From-number problems: not owned by this account, not voice-capable,
+        # or SIP-domain-mismatched.
+        if code in (21212, 21606, 21210):
             return ("invalid_from_number",
                     "From-number is not a valid Twilio number in this account, "
                     "or is not permitted to originate calls.")
-        if code in (21211, 21217, 21218, 21219):
+        # To-number problems: malformed, unverified trial destination, etc.
+        if code in (21211, 21217, 21219):
             return ("invalid_to_number",
-                    "Destination number rejected by Twilio (bad format or not "
-                    "permitted).")
+                    "Destination number rejected by Twilio (bad format or, on "
+                    "trial accounts, not on the verified-callers list).")
+        # Geographic-permissions / carrier-reachability: not the from-number.
+        if code in (21214, 21215):
+            return ("provider_error",
+                    "Twilio cannot reach this destination — geographic calling "
+                    "permissions may not be enabled for the destination "
+                    "country/region on this account.")
+        # Misconfigured Voice Application SID.
+        if code == 21218:
+            return ("provider_error",
+                    "Twilio ApplicationSid is invalid — check the Voice "
+                    "Application configuration in the Twilio Console.")
         if status == 429 or code == 20429:
             return ("rate_limited", "Twilio is rate-limiting this account.")
         return ("provider_error",

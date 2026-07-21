@@ -60,6 +60,11 @@ class TelnyxProvider(TelephonyProvider):
             category, msg = _classify(e)
             return CallResult(status="failed", error_message=msg, error_category=category)
 
+        # Per the TelephonyProvider contract, notify the caller that the call
+        # is in flight so the server can stream a "dialing" event to ARMOR.
+        if on_event:
+            on_event("dialing", {"provider_call_id": call_leg_id})
+
         start_time = time.time()
         # Telnyx events have a ~15-20s delay; hold is up to 55s; total budget
         # needs to cover both plus some ring time.
@@ -77,8 +82,13 @@ class TelnyxProvider(TelephonyProvider):
                 log.debug("[%.1fs] events=%s", elapsed, event_names)
 
                 for event in events.data:
-                    if event.name == "call.answered":
+                    if event.name == "call.answered" and not was_answered:
                         was_answered = True
+                        if on_event:
+                            on_event("answered", {
+                                "provider_call_id": call_leg_id,
+                                "duration": elapsed,
+                            })
                     if event.name in ("call.hangup", "call.machine.detection.ended"):
                         call_ended = True
 

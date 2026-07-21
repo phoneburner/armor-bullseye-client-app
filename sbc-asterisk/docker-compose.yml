@@ -10,6 +10,12 @@
 
 services:
   bullseye-asterisk:
+    # `18-current` is a floating tag. Fine for a proof-of-concept; for
+    # production, pin by digest. Look up the current digest with:
+    #   docker pull andrius/asterisk:18-current
+    #   docker image inspect andrius/asterisk:18-current \
+    #     | jq -r '.[0].RepoDigests[0]'
+    # and replace this with andrius/asterisk:18-current@sha256:<digest>.
     image: andrius/asterisk:18-current
     container_name: bullseye-asterisk
     restart: unless-stopped

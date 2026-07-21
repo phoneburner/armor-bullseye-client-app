@@ -113,9 +113,15 @@ class BandwidthProvider(TelephonyProvider):
                 on_event("dialing", {"provider_call_id": call_id})
 
             start_time = time.time()
-            max_wait = 120
+            max_wait = 180
             poll_interval = 2
             answered = False
+            # Consecutive poll errors: if we hit this many in a row we treat
+            # the call as failed (network outage) rather than let the loop
+            # fall through to a "no_answer" that would mislead ARMOR into
+            # believing the number is being blocked.
+            consecutive_poll_errors = 0
+            poll_error_threshold = 5
 
             while time.time() - start_time < max_wait:
                 time.sleep(poll_interval)
@@ -123,6 +129,7 @@ class BandwidthProvider(TelephonyProvider):
                 try:
                     state = calls_api.get_call_state(self.account_id, call_id)
                     log.debug("[%.1fs] state=%s", elapsed, state.state)
+                    consecutive_poll_errors = 0
 
                     if state.state == "answered" and not answered:
                         answered = True
@@ -144,7 +151,22 @@ class BandwidthProvider(TelephonyProvider):
                         return CallResult(status=final_status, duration=duration, provider_call_id=call_id)
 
                 except Exception as e:
-                    log.warning("[%.1fs] Status check error: %s", elapsed, e)
+                    consecutive_poll_errors += 1
+                    log.warning("[%.1fs] Status check error (%d/%d): %s",
+                                elapsed, consecutive_poll_errors, poll_error_threshold, e)
+                    if consecutive_poll_errors >= poll_error_threshold:
+                        duration = time.time() - start_time
+                        category, msg = _classify(e)
+                        # Even if the classifier says "provider_error", if the
+                        # SDK never got a response we're really talking about
+                        # a reachability problem.
+                        return CallResult(
+                            status="failed",
+                            duration=duration,
+                            provider_call_id=call_id,
+                            error_message=msg,
+                            error_category=category,
+                        )
                     continue
 
             duration = time.time() - start_time
