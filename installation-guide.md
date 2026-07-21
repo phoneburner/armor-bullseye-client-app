@@ -1,6 +1,6 @@
 # Bullseye Agent — Installation & Configuration Guide
 
-**Version 1.0.2**
+**Version 1.0.3**
 
 This is the Markdown version of the install guide. An HTML version
 (`installation-guide.html`) covers the same material.
@@ -68,19 +68,19 @@ Before you begin, make sure you have:
 
 Download the latest agent release from GitHub:
 
-- [bullseye-agent-1.0.2.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.2.tar.gz)
-- [bullseye-agent-1.0.2.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.2.zip)
+- [bullseye-agent-1.0.3.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.3.tar.gz)
+- [bullseye-agent-1.0.3.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.3.zip)
 
 Extract:
 
 ```bash
 # Linux / macOS
-tar xzf bullseye-agent-1.0.2.tar.gz
-cd armor-bullseye-client-app-1.0.2
+tar xzf bullseye-agent-1.0.3.tar.gz
+cd armor-bullseye-client-app-1.0.3
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.2.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.2
+Expand-Archive bullseye-agent-1.0.3.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.3
 ```
 
 You should see:
@@ -350,7 +350,7 @@ after reboots or crashes. The README has a sample `systemd` unit.
 After starting the agent, check the startup log:
 
 ```
-B U L L S E Y E  v1.0.2
+B U L L S E Y E  v1.0.3
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -458,4 +458,4 @@ For help, contact your Bullseye representative. Include in your message:
 
 ---
 
-*Bullseye Agent v1.0.2 — Installation Guide — © 2026 Armor Solutions, Inc.*
+*Bullseye Agent v1.0.3 — Installation Guide — © 2026 Armor Solutions, Inc.*
