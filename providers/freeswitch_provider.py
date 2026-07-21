@@ -45,7 +45,8 @@ Environment variables (see .env.example for the full template):
     FREESWITCH_PASSWORD          ESL password from event_socket.conf.xml
     FREESWITCH_ENDPOINT_TEMPLATE Dial string template, with {to_number}
     FREESWITCH_DIAL_TIMEOUT      Total seconds to wait for terminal event
-                                  (default 90 — gives time for ring + hold)
+                                  (default 180 — covers ring + up to 55s
+                                  hold + FreeSWITCH event-delivery slack)
 """
 
 import os
