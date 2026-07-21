@@ -125,6 +125,15 @@ class TelnyxProvider(TelephonyProvider):
                 if consecutive_poll_errors >= poll_error_threshold:
                     duration = time.time() - start_time
                     category, msg = _classify(e)
+                    # The dial already succeeded, so the leg may still be
+                    # ringing or connected (and chargeable). Best-effort
+                    # hangup before we give up — otherwise we report the
+                    # call finished while it keeps running.
+                    try:
+                        self.client.calls.actions.hangup(call_control_id)
+                        log.info("Best-effort hangup sent after poll failures")
+                    except Exception as he:
+                        log.warning("Best-effort hangup failed: %s", he)
                     return CallResult(status="failed", duration=duration,
                                       provider_call_id=call_leg_id,
                                       error_message=msg, error_category=category)
