@@ -164,13 +164,19 @@ head2 "Bullseye server"
 if [ -n "${BULLSEYE_SERVER_URL:-}" ]; then
     server_host=$(url_host "$BULLSEYE_SERVER_URL")
     server_scheme=$(url_scheme "$BULLSEYE_SERVER_URL")
-    if [ "$server_scheme" = "https" ]; then
-        server_port=$(url_port "$BULLSEYE_SERVER_URL" 443)
-        check_https "Bullseye server" "$server_host" "$server_port"
-    else
-        server_port=$(url_port "$BULLSEYE_SERVER_URL" 80)
-        check_tcp "Bullseye server (http)" "$server_host" "$server_port"
-    fi
+    # The agent accepts wss:// / ws:// as well as https:// / http://.
+    # TLS schemes (https, wss) → probe TLS+HTTP on 443. Plaintext schemes
+    # (http, ws) → DNS+TCP on 80.
+    case "$server_scheme" in
+        https|wss)
+            server_port=$(url_port "$BULLSEYE_SERVER_URL" 443)
+            check_https "Bullseye server" "$server_host" "$server_port"
+            ;;
+        *)
+            server_port=$(url_port "$BULLSEYE_SERVER_URL" 80)
+            check_tcp "Bullseye server (plaintext)" "$server_host" "$server_port"
+            ;;
+    esac
 else
     skip "Bullseye server check" "BULLSEYE_SERVER_URL not set"
 fi

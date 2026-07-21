@@ -129,30 +129,50 @@ class RingCentralProvider(TelephonyProvider):
         body = resp.json()
         if body.get("status") != "ready":
             raise RuntimeError(f"RingCentral sidecar reports status={body.get('status')!r}")
+        # We must know the registered number to validate from_number per call.
+        # Refresh it now; without it we cannot safely place calls.
+        self.registered_number = body.get("registeredNumber")
+        if not self.registered_number:
+            raise RuntimeError(
+                "RingCentral sidecar did not report a registeredNumber — "
+                "cannot validate the caller ID, refusing to proceed."
+            )
 
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
         log.info("Dialing %s -> %s via RingCentral", from_number, to_number)
 
         # RingCentral originates from whichever number the sidecar's SIP
-        # session is registered as — you can't pick a different caller
-        # ID per call. If the requester asked for a different from_number,
-        # fail loudly so a Bullseye result never gets attributed to a
-        # number that wasn't actually the sender.
-        if self.registered_number:
-            asked = from_number.lstrip("+")
-            registered = str(self.registered_number).lstrip("+")
-            if asked != registered:
-                msg = (
-                    f"RingCentral is registered as {registered!r} but this test "
-                    f"asked to originate from {asked!r}. RingCentral cannot vary "
-                    "the caller ID per call. Aborting so the result isn't misattributed."
-                )
-                log.error(msg)
-                return CallResult(
-                    status="failed",
-                    error_message="RingCentral from-number mismatch",
-                    error_category="invalid_from_number",
-                )
+        # session is registered as — you can't pick a different caller ID
+        # per call. Fail CLOSED: if we don't know the registered number,
+        # or it doesn't match the requested from_number, abort so a
+        # Bullseye result is never attributed to a number that wasn't the
+        # actual sender.
+        if not self.registered_number:
+            # Retry the fetch once; the sidecar may have registered since
+            # construction.
+            self._cache_registered_number()
+        if not self.registered_number:
+            log.error("RingCentral registered number unknown; cannot validate caller ID")
+            return CallResult(
+                status="failed",
+                error_message="RingCentral registered number unavailable",
+                error_category="call_setup_failed",
+            )
+
+        asked = from_number.lstrip("+")
+        registered = str(self.registered_number).lstrip("+")
+        if asked != registered:
+            msg = (
+                f"RingCentral is registered as {registered!r} but this test "
+                f"asked to originate from {asked!r}. RingCentral cannot vary "
+                "the caller ID per call. Aborting so the result isn't misattributed."
+            )
+            log.error(msg)
+            return CallResult(
+                status="failed",
+                error_message="RingCentral from-number mismatch",
+                error_category="invalid_from_number",
+            )
 
         hold = random_hold_seconds()
         try:

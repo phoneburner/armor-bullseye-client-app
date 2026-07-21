@@ -72,26 +72,41 @@ class TelnyxProvider(TelephonyProvider):
         poll_interval = 3
         was_answered = False
         call_ended = False
+        # Bounded polling errors: a firewall/API outage should surface as
+        # failed/network_error, not silently ride out the deadline and
+        # report no_answer (which would falsely tell ARMOR the number is
+        # being blocked).
+        consecutive_poll_errors = 0
+        poll_error_threshold = 5
 
         while time.time() - start_time < max_wait:
             time.sleep(poll_interval)
             elapsed = time.time() - start_time
             try:
                 events = self.client.call_events.list(filter={"leg_id": call_leg_id}, page_size=50)
-                event_names = [e.name for e in events.data]
-                log.debug("[%.1fs] events=%s", elapsed, event_names)
+                consecutive_poll_errors = 0
+                event_names = {e.name for e in events.data}
+                log.debug("[%.1fs] events=%s", elapsed, sorted(event_names))
 
-                for event in events.data:
-                    if event.name == "call.answered" and not was_answered:
-                        was_answered = True
-                        if on_event:
-                            on_event("answered", {
-                                "provider_call_id": call_leg_id,
-                                "duration": elapsed,
-                            })
-                    if event.name in ("call.hangup", "call.machine.detection.ended"):
-                        call_ended = True
+                if "call.answered" in event_names and not was_answered:
+                    was_answered = True
+                    if on_event:
+                        on_event("answered", {
+                            "provider_call_id": call_leg_id,
+                            "duration": elapsed,
+                        })
+                if event_names & {"call.hangup", "call.machine.detection.ended"}:
+                    call_ended = True
 
+                # Terminal event wins. Because Telnyx batches delayed events,
+                # a single poll can surface both call.answered and call.hangup
+                # together — in that case the call is already over and we must
+                # NOT start a 35-55s hold on a dead call.
+                if call_ended:
+                    log.info("Call ended (answered=%s)", was_answered)
+                    break
+
+                # Answered and still live → hold, then hang up.
                 if was_answered:
                     hold = random_hold_seconds()
                     log.info("Call answered, holding for %ds", hold)
@@ -100,14 +115,19 @@ class TelnyxProvider(TelephonyProvider):
                         self.client.calls.actions.hangup(call_control_id)
                     except Exception:
                         pass
-                    break
-
-                if call_ended:
-                    log.info("Call ended without answer")
+                    call_ended = True
                     break
 
             except Exception as e:
-                log.warning("[%.1fs] Event check error: %s", elapsed, e)
+                consecutive_poll_errors += 1
+                log.warning("[%.1fs] Event check error (%d/%d): %s",
+                            elapsed, consecutive_poll_errors, poll_error_threshold, e)
+                if consecutive_poll_errors >= poll_error_threshold:
+                    duration = time.time() - start_time
+                    category, msg = _classify(e)
+                    return CallResult(status="failed", duration=duration,
+                                      provider_call_id=call_leg_id,
+                                      error_message=msg, error_category=category)
                 continue
 
         duration = time.time() - start_time

@@ -1,6 +1,6 @@
 # Bullseye Agent — Installation & Configuration Guide
 
-**Version 1.0.5**
+**Version 1.0.6**
 
 This is the Markdown version of the install guide. An HTML version
 (`installation-guide.html`) covers the same material.
@@ -68,19 +68,19 @@ Before you begin, make sure you have:
 
 Download the latest agent release from GitHub:
 
-- [bullseye-agent-1.0.5.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.5.tar.gz)
-- [bullseye-agent-1.0.5.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.5.zip)
+- [bullseye-agent-1.0.6.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.6.tar.gz)
+- [bullseye-agent-1.0.6.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.6.zip)
 
 Extract:
 
 ```bash
 # Linux / macOS
-tar xzf bullseye-agent-1.0.5.tar.gz
-cd armor-bullseye-client-app-1.0.5
+tar xzf bullseye-agent-1.0.6.tar.gz
+cd armor-bullseye-client-app-1.0.6
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.5.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.5
+Expand-Archive bullseye-agent-1.0.6.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.6
 ```
 
 You should see:
@@ -193,10 +193,11 @@ account and places calls via SIP.
 | `RINGCENTRAL_CLIENT_SECRET` | REST API app Client Secret |
 | `RINGCENTRAL_JWT_TOKEN` | JWT credential from the admin portal |
 | `RINGCENTRAL_SERVER_URL` | Optional. Defaults to `https://platform.ringcentral.com` |
+| `SIDECAR_AUTH_TOKEN` | Shared secret between the agent and the sidecar. **Required for the Docker profile** (the sidecar listens on the Compose network, not loopback, and refuses to start without it). Generate with `openssl rand -hex 32`. Optional for Python-from-source (the sidecar binds loopback there). |
 
 **SIP sidecar:**
-- **Docker:** start with the `ringcentral` profile: `docker compose --profile ringcentral up -d --build`. The sidecar runs as a second container automatically.
-- **Python:** requires **Node.js 18+** installed. The agent starts the sidecar as a subprocess automatically; the first run installs npm dependencies.
+- **Docker:** start with the `ringcentral` profile: `docker compose --profile ringcentral up -d --build`. The sidecar runs as a second container automatically. You **must** set `SIDECAR_AUTH_TOKEN` in `.env` first — it's shared by both containers and gates every call-placing request.
+- **Python:** requires **Node.js 18+** installed. The agent starts the sidecar as a subprocess on `127.0.0.1` automatically; the first run installs npm dependencies. `SIDECAR_AUTH_TOKEN` is optional in this mode.
 
 **Caller ID limitation:** the "from" number is determined by which RingCentral
 device the sidecar registers as. You cannot specify a different caller ID
@@ -253,7 +254,7 @@ stream for the terminal hangup cause.
 | `FREESWITCH_PORT` | Optional. ESL port (default `8021`) |
 | `FREESWITCH_PASSWORD` | ESL password from `event_socket.conf.xml` |
 | `FREESWITCH_ENDPOINT_TEMPLATE` | Dial string template, e.g. `sofia/gateway/my-provider/{to_number}` |
-| `FREESWITCH_DIAL_TIMEOUT` | Optional. Total seconds to wait for the terminal event (default `90`) |
+| `FREESWITCH_DIAL_TIMEOUT` | Optional. Total seconds to wait for the terminal event (default `180`) |
 
 ESL is plain TCP, **no TLS**. Keep the agent and FreeSWITCH on a private
 network, or tunnel the ESL connection (Tailscale, WireGuard, or SSH tunnel).
@@ -357,7 +358,7 @@ after reboots or crashes. The README has a sample `systemd` unit.
 After starting the agent, check the startup log:
 
 ```
-B U L L S E Y E  v1.0.5
+B U L L S E Y E  v1.0.6
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -501,4 +502,4 @@ For help, contact your Bullseye representative. Include in your message:
 
 ---
 
-*Bullseye Agent v1.0.5 — Installation Guide — © 2026 Armor Solutions, Inc.*
+*Bullseye Agent v1.0.6 — Installation Guide — © 2026 Armor Solutions, Inc.*

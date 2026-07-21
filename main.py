@@ -17,7 +17,7 @@ from providers.asterisk_provider import AsteriskProvider
 from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 
 log = logging.getLogger("bullseye")
 
@@ -39,8 +39,21 @@ MAX_WS_MESSAGE_SIZE = 64 * 1024
 # Cap on how many calls can run in parallel. Provider SDKs vary in
 # thread-safety; more importantly, most telco accounts throttle at some
 # small number of concurrent originates. Override with BULLSEYE_MAX_CONCURRENT_CALLS
-# if you really need to fan out.
-MAX_CONCURRENT_CALLS = int(os.environ.get("BULLSEYE_MAX_CONCURRENT_CALLS", "4"))
+# if you really need to fan out. Must be a positive integer — 0 would
+# deadlock (no test could ever acquire the semaphore) and negative /
+# non-numeric values are meaningless.
+def _load_max_concurrent() -> int:
+    raw = os.environ.get("BULLSEYE_MAX_CONCURRENT_CALLS", "4")
+    try:
+        value = int(raw)
+    except ValueError:
+        sys.exit(f"Error: BULLSEYE_MAX_CONCURRENT_CALLS must be an integer, got {raw!r}")
+    if value < 1:
+        sys.exit(f"Error: BULLSEYE_MAX_CONCURRENT_CALLS must be >= 1, got {value}")
+    return value
+
+
+MAX_CONCURRENT_CALLS = _load_max_concurrent()
 _call_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
 
 # Test IDs currently in flight (or recently completed). Prevents the server
@@ -183,13 +196,20 @@ async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider
         log.info("=" * 60)
 
         heartbeat_task = asyncio.create_task(heartbeat(ws))
+        # Track the call tasks spawned on THIS connection so we can cancel
+        # them when the socket drops. A task left running against a dead
+        # socket would fail its final send, discard its in-flight ID, and
+        # race the server's re-delivery on reconnect.
+        call_tasks: set[asyncio.Task] = set()
         try:
             async for raw_msg in ws:
                 msg = json.loads(raw_msg)
                 msg_type = msg.get("type")
 
                 if msg_type == "test":
-                    asyncio.create_task(handle_test(provider, ws, msg))
+                    task = asyncio.create_task(handle_test(provider, ws, msg))
+                    call_tasks.add(task)
+                    task.add_done_callback(call_tasks.discard)
                 elif msg_type == "ack":
                     log.debug("Server ack: test %s -> %s", msg.get("test_id"), msg.get("status"))
                 elif msg_type == "pong":
@@ -198,6 +218,15 @@ async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider
                     log.warning("Unknown message type: %s", msg_type)
         finally:
             heartbeat_task.cancel()
+            # Cancel any call tasks still attached to this (now closing)
+            # connection. Queued tasks unwind cleanly and release their
+            # in-flight ID so the server's re-delivery on reconnect is
+            # accepted rather than rejected as a duplicate. A task already
+            # executing a provider call can't stop the underlying blocking
+            # SDK thread — that call rides out — but its coroutine unwinds
+            # and the test is re-dispatched on reconnect (at-least-once).
+            for task in list(call_tasks):
+                task.cancel()
 
 
 async def main():

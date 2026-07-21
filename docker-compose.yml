@@ -26,6 +26,15 @@ services:
     profiles: ["ringcentral"]
     env_file:
       - .env
+    environment:
+      # The agent reaches the sidecar over Docker's private network by
+      # service name, so the sidecar must listen on all interfaces (not
+      # just loopback). Because this is non-loopback, the sidecar REQUIRES
+      # SIDECAR_AUTH_TOKEN — set it in .env; it flows to both containers
+      # via env_file above, so they share the same secret. Only the
+      # containers on this Compose network can reach 3000 (expose, not
+      # ports), and the token gates every call-placing request.
+      - SIDECAR_BIND=0.0.0.0
     expose:
       - "3000"
     stop_grace_period: 10s

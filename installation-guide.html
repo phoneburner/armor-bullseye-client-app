@@ -303,7 +303,7 @@
 <div class="header">
   <h1>Bullseye Agent</h1>
   <div class="subtitle">Installation &amp; Configuration Guide</div>
-  <div class="version">v1.0.5</div>
+  <div class="version">v1.0.6</div>
 </div>
 
 <nav class="toc">
@@ -432,23 +432,23 @@
 <p>Download the latest agent package:</p>
 
 <div class="download-row">
-  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.5.tar.gz" class="download-btn">
-    <span class="arrow">&darr;</span> bullseye-agent-1.0.5.tar.gz
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.6.tar.gz" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.6.tar.gz
   </a>
-  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.5.zip" class="download-btn">
-    <span class="arrow">&darr;</span> bullseye-agent-1.0.5.zip
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.6.zip" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.6.zip
   </a>
 </div>
 
 <p>Extract the archive:</p>
 
 <pre><code># Linux / macOS
-tar xzf bullseye-agent-1.0.5.tar.gz
-cd armor-bullseye-client-app-1.0.5
+tar xzf bullseye-agent-1.0.6.tar.gz
+cd armor-bullseye-client-app-1.0.6
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.5.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.5</code></pre>
+Expand-Archive bullseye-agent-1.0.6.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.6</code></pre>
 
 <p>You should see the following files:</p>
 
@@ -644,6 +644,7 @@ needed.</p>
   <tr><td><code>RINGCENTRAL_CLIENT_SECRET</code></td><td>REST API app Client Secret</td></tr>
   <tr><td><code>RINGCENTRAL_JWT_TOKEN</code></td><td>JWT credential from the admin portal</td></tr>
   <tr><td><code>RINGCENTRAL_SERVER_URL</code></td><td>Optional. Defaults to <code>https://platform.ringcentral.com</code></td></tr>
+  <tr><td><code>SIDECAR_AUTH_TOKEN</code></td><td>Shared secret between the agent and the sidecar. <strong>Required for the Docker profile</strong> (the sidecar listens on the Compose network, not loopback, and refuses to start without it). Generate with <code>openssl rand -hex 32</code>. Optional for Python-from-source.</td></tr>
 </table>
 
 <div class="callout callout-info">
@@ -652,14 +653,17 @@ needed.</p>
     RingCentral requires a SIP sidecar to run alongside the agent:
   </p>
   <p>
-    <strong>Docker:</strong> start with the <code>ringcentral</code> profile:
+    <strong>Docker:</strong> set <code>SIDECAR_AUTH_TOKEN</code> in <code>.env</code>
+    first, then start with the <code>ringcentral</code> profile:
     <code>docker compose --profile ringcentral up -d --build</code>. The sidecar
-    runs as a second container automatically.
+    runs as a second container and requires the shared token, which both
+    containers read from <code>.env</code>.
   </p>
   <p>
     <strong>Python:</strong> requires <strong>Node.js 18+</strong> installed on
     the machine. The agent detects this and starts the sidecar as a subprocess
-    automatically. The first run will install npm dependencies.
+    on <code>127.0.0.1</code> automatically. The first run will install npm
+    dependencies. <code>SIDECAR_AUTH_TOKEN</code> is optional in this mode.
   </p>
   <p>
     No public IP or inbound ports are needed &mdash; SIP runs over an outbound
@@ -745,7 +749,7 @@ ARI HTTP port (8088 by default).</p>
   <tr><td><code>FREESWITCH_PORT</code></td><td>Optional. ESL port (default <code>8021</code>)</td></tr>
   <tr><td><code>FREESWITCH_PASSWORD</code></td><td>ESL password from <code>event_socket.conf.xml</code></td></tr>
   <tr><td><code>FREESWITCH_ENDPOINT_TEMPLATE</code></td><td>Dial string template, e.g. <code>sofia/gateway/my-provider/{to_number}</code></td></tr>
-  <tr><td><code>FREESWITCH_DIAL_TIMEOUT</code></td><td>Optional. Total seconds to wait for the terminal event (default <code>90</code>)</td></tr>
+  <tr><td><code>FREESWITCH_DIAL_TIMEOUT</code></td><td>Optional. Total seconds to wait for the terminal event (default <code>180</code>)</td></tr>
 </table>
 
 <div class="callout callout-warning">
@@ -839,7 +843,7 @@ implementation determines what your environment needs.</p>
       oo           oo
         ooooooooooo
 
-      B U L L S E Y E  v1.0.5
+      B U L L S E Y E  v1.0.6
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -1131,7 +1135,7 @@ transiently to execute the test and are not retained.</p>
 
 
 <div class="footer">
-  Bullseye Agent v1.0.5 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
+  Bullseye Agent v1.0.6 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
 </div>
 
 </body>
