@@ -116,8 +116,9 @@ one-legged and fully automated.
 > and will be decommissioned on 2026-12-02. Use OAuth.
 
 The `BANDWIDTH_ANSWER_URL` points to a Bullseye server endpoint that tells
-Bandwidth what to do when the call is answered (hold for 10 seconds, then
-hang up). It's pre-configured — you don't need to change it.
+Bandwidth what to do when the call is answered (hold the call open for a
+randomized 35-55 seconds, then hang up — the same behavior as every other
+provider). It's pre-configured — you don't need to change it.
 
 **Additional requirements:** None. Works with Docker or Python out of the box.
 
@@ -213,6 +214,34 @@ connection).
 > **Note:** The "from" number is determined by which RingCentral device the
 > sidecar registers as. You cannot specify a different caller ID per call.
 
+### Asterisk
+
+For customers running their own Asterisk PBX (13.1+). The agent talks to
+Asterisk over ARI (REST + WebSocket) and originates calls into a landing
+dialplan context that holds each call for a randomized 35-55 seconds.
+See [`installation-guide.md`](installation-guide.md#asterisk) for env
+vars and the sample dialplan.
+
+For customers who want to dial through their own SBC, the
+`sbc-asterisk/` directory ships a docker-compose stack that runs the
+agent plus a preconfigured Asterisk sidecar. See
+[`sbc-asterisk/README.md`](sbc-asterisk/README.md).
+
+### FreeSWITCH
+
+For customers running their own FreeSWITCH. The agent connects to ESL
+(Event Socket) and originates calls with a randomized 35-55s hold. See
+[`installation-guide.md`](installation-guide.md#freeswitch) for env
+vars and setup.
+
+### Proprietary
+
+For customers who originate calls through their own network
+infrastructure. Implement one Python function
+(`providers/proprietary_provider.py::place_call`) and the agent handles
+everything else. See
+[`CUSTOM_PROVIDER_GUIDE.md`](CUSTOM_PROVIDER_GUIDE.md).
+
 ---
 
 ## Docker Commands
@@ -280,6 +309,28 @@ Set `LOG_LEVEL` in `.env` to control verbosity:
 
 ## Troubleshooting
 
+**First stop for connectivity issues: `net-check`.** The image bundles a
+canned diagnostic that probes the network path from the agent container
+to the Bullseye server and to the configured telephony provider. Run it
+inside a running container:
+
+```bash
+# Docker
+docker exec bullseye-agent net-check
+
+# Kubernetes / EKS
+kubectl exec -it deployment/bullseye-agent -- net-check
+```
+
+Prints PASS/FAIL per stage (DNS → TCP → TLS → HTTP). Output has no
+credentials; safe to paste into a support ticket. See the install guide
+for a full breakdown of what each failure typically means.
+
+Related: at startup, every provider runs a preflight check against its
+API. If the startup banner shows `Provider: <name> (preflight FAILED)`,
+the reason line explains what's wrong (usually a firewall, wrong
+credentials, or a TLS-inspecting proxy).
+
 **"Invalid API key" / connection closes with code 4003**
 Double-check `BULLSEYE_API_KEY` in `.env` — it should start with `bse_`.
 
@@ -289,7 +340,8 @@ Double-check `BULLSEYE_API_KEY` in `.env` — it should start with `bse_`.
 - Check that outbound port 443 is not blocked by a firewall
 
 **"Error: Unsupported provider"**
-`TELEPHONY_PROVIDER` must be `bandwidth`, `twilio`, `telnyx`, or `ringcentral` (lowercase).
+`TELEPHONY_PROVIDER` must be `bandwidth`, `twilio`, `telnyx`, `ringcentral`,
+`asterisk`, `freeswitch`, or `proprietary` (lowercase).
 
 **Twilio: authentication errors**
 Use the primary Account SID + Auth Token from the Twilio Console, not an

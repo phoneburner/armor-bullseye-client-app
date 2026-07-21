@@ -217,6 +217,7 @@ A complete (toy) example, assuming your network has a Python client
 called `mynetwork`:
 
 ```python
+import random
 import time
 import logging
 from providers.base import TelephonyProvider, CallResult, CallEventCallback
@@ -237,7 +238,10 @@ class ProprietaryProvider(TelephonyProvider):
             call_id = self.client.dial(
                 from_number=from_number,
                 to_number=to_number,
-                hold_seconds=10,
+                # Pick a random hold in the same 35-55s window the built-in
+                # providers use — a fixed value looks like automation to
+                # spam-detection systems.
+                hold_seconds=random.randint(35, 55),
             )
             if on_event:
                 on_event("dialing", {"provider_call_id": call_id})
