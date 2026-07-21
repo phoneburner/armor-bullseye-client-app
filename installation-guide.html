@@ -303,7 +303,7 @@
 <div class="header">
   <h1>Bullseye Agent</h1>
   <div class="subtitle">Installation &amp; Configuration Guide</div>
-  <div class="version">v1.0.3</div>
+  <div class="version">v1.0.4</div>
 </div>
 
 <nav class="toc">
@@ -432,23 +432,23 @@
 <p>Download the latest agent package:</p>
 
 <div class="download-row">
-  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.3.tar.gz" class="download-btn">
-    <span class="arrow">&darr;</span> bullseye-agent-1.0.3.tar.gz
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.4.tar.gz" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.4.tar.gz
   </a>
-  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.3.zip" class="download-btn">
-    <span class="arrow">&darr;</span> bullseye-agent-1.0.3.zip
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.4.zip" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.4.zip
   </a>
 </div>
 
 <p>Extract the archive:</p>
 
 <pre><code># Linux / macOS
-tar xzf bullseye-agent-1.0.3.tar.gz
-cd armor-bullseye-client-app-1.0.3
+tar xzf bullseye-agent-1.0.4.tar.gz
+cd armor-bullseye-client-app-1.0.4
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.3.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.3</code></pre>
+Expand-Archive bullseye-agent-1.0.4.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.4</code></pre>
 
 <p>You should see the following files:</p>
 
@@ -838,7 +838,7 @@ implementation determines what your environment needs.</p>
       oo           oo
         ooooooooooo
 
-      B U L L S E Y E  v1.0.3
+      B U L L S E Y E  v1.0.4
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -944,6 +944,41 @@ the call progress in the logs:</p>
 
 
 <h2 id="troubleshooting">10. Troubleshooting</h2>
+
+<h3>Bundled network diagnostic: <code>net-check</code></h3>
+<p>
+  Every agent image ships with a diagnostic script that probes the network
+  path from the agent container to the Bullseye server and to the configured
+  telephony provider. Run it from inside a running container to distinguish
+  credential problems from network problems.
+</p>
+
+<p><strong>Docker:</strong></p>
+<pre><code>docker exec bullseye-agent net-check</code></pre>
+
+<p><strong>Kubernetes / EKS:</strong></p>
+<pre><code>kubectl exec -it deployment/bullseye-agent -- net-check</code></pre>
+
+<p>
+  The output is a PASS / FAIL per stage (DNS, TCP, TLS, HTTP) for each
+  endpoint the agent needs. It does <strong>not</strong> include credentials
+  &mdash; safe to paste into a support ticket.
+</p>
+
+<table>
+  <tr><th>Result</th><th>Likely cause</th></tr>
+  <tr><td>DNS FAIL</td><td>CoreDNS / cluster DNS policy blocking lookups</td></tr>
+  <tr><td>TCP FAIL</td><td>Firewall, security group, or NetworkPolicy dropping the SYN</td></tr>
+  <tr><td>TLS FAIL</td><td>TLS-inspecting proxy or clock skew (cert validation)</td></tr>
+  <tr><td>HTTP FAIL with &ldquo;connection reset by peer&rdquo;</td><td>Deep-packet-inspection appliance dropping the request mid-stream</td></tr>
+  <tr><td>All checks PASS but calls still fail</td><td>Rule out network &mdash; likely credentials or provider config</td></tr>
+</table>
+
+<p>
+  The container also has <code>curl</code>, <code>dig</code>,
+  <code>nslookup</code>, <code>ping</code>, and <code>nc</code> available
+  if you want to probe something specific.
+</p>
 
 <h3>"Invalid API key" or connection closes with code 4003</h3>
 <p>
@@ -1095,7 +1130,7 @@ transiently to execute the test and are not retained.</p>
 
 
 <div class="footer">
-  Bullseye Agent v1.0.3 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
+  Bullseye Agent v1.0.4 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
 </div>
 
 </body>
