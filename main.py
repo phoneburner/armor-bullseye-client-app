@@ -129,6 +129,7 @@ async def handle_test(provider: TelephonyProvider, ws: websockets.ClientConnecti
         "call_duration": result.duration,
         "provider_call_id": result.provider_call_id,
         "error_message": result.error_message,
+        "error_category": result.error_category,
     }))
     log.info("Test %s: result sent (%s)", test_id, result.status)
 

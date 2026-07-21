@@ -68,7 +68,7 @@ from requests.auth import HTTPBasicAuth
 from websockets.sync.client import connect as ws_connect
 from websockets.exceptions import WebSocketException
 
-from providers.base import TelephonyProvider, CallResult, CallEventCallback
+from providers.base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
 
 log = logging.getLogger(__name__)
 
@@ -98,6 +98,12 @@ class AsteriskProvider(TelephonyProvider):
         self.dial_timeout = int(os.environ.get("ASTERISK_DIAL_TIMEOUT", "30"))
         self.auth = HTTPBasicAuth(self.username, self.password)
         self.ws_url_base = _derive_ws_url(self.ari_url)
+
+    def preflight(self) -> None:
+        # ARI /asterisk/info is authenticated + cheap. Confirms reachability,
+        # HTTP layer, and credentials in one shot.
+        r = requests.get(f"{self.ari_url}/asterisk/info", auth=self.auth, timeout=5)
+        r.raise_for_status()
 
     def place_call(
         self,
@@ -186,15 +192,28 @@ class AsteriskProvider(TelephonyProvider):
 
             return self._build_result(channel_id, answered_at, cause)
 
-        except Exception:
+        except Exception as e:
             log.exception(
                 "Asterisk call failed: from=%s to=%s channel=%s",
                 from_number, to_number, channel_id,
             )
+            status_code = getattr(getattr(e, "response", None), "status_code", None)
+            if status_code in (401, 403):
+                category, msg = ("auth_error",
+                                 "Asterisk ARI credentials rejected — check "
+                                 "ASTERISK_ARI_USERNAME / ASTERISK_ARI_PASSWORD.")
+            elif status_code == 404:
+                category, msg = ("provider_error",
+                                 "Asterisk ARI resource not found — check "
+                                 "ASTERISK_CONTEXT / ASTERISK_EXTENSION and "
+                                 "the endpoint template.")
+            else:
+                category, msg = classify_generic(e)
             return CallResult(
                 status="failed",
                 provider_call_id=channel_id,
-                error_message="Call initiation failed",
+                error_message=msg,
+                error_category=category,
             )
         finally:
             if ws is not None:

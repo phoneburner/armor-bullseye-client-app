@@ -6,7 +6,23 @@ import subprocess
 import sys
 import time
 import requests
-from .base import TelephonyProvider, CallResult, CallEventCallback
+from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
+
+
+def _classify_http(status: int | None, body: str | None) -> tuple[str, str]:
+    """Classify a sidecar HTTP failure into (category, safe message)."""
+    if status in (401, 403):
+        return ("auth_error",
+                "RingCentral credentials rejected by the sidecar — check "
+                "RINGCENTRAL_CLIENT_ID / SECRET and RINGCENTRAL_JWT_TOKEN.")
+    if status == 429:
+        return ("rate_limited", "RingCentral is rate-limiting this account.")
+    if status == 503:
+        return ("call_setup_failed",
+                "RingCentral sidecar is not ready — SIP registration may be down.")
+    if status is not None:
+        return ("provider_error", f"RingCentral sidecar returned HTTP {status}.")
+    return ("provider_error", "RingCentral sidecar request failed.")
 
 log = logging.getLogger("bullseye.ringcentral")
 
@@ -87,6 +103,15 @@ class RingCentralProvider(TelephonyProvider):
         self._sidecar_process.kill()
         raise RuntimeError("RingCentral sidecar failed to become ready within 30 seconds")
 
+    def preflight(self) -> None:
+        # The sidecar's /health endpoint confirms it's up and SIP-registered.
+        # If the sidecar isn't running, this raises via requests.
+        resp = requests.get(f"{self.base_url}/health", timeout=5)
+        resp.raise_for_status()
+        body = resp.json()
+        if body.get("status") != "ready":
+            raise RuntimeError(f"RingCentral sidecar reports status={body.get('status')!r}")
+
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
         log.info("Dialing %s -> %s via RingCentral", from_number, to_number)
 
@@ -100,9 +125,14 @@ class RingCentralProvider(TelephonyProvider):
             data = resp.json()
             call_id = data["call_id"]
             log.info("Call initiated: call_id=%s", call_id)
+        except requests.HTTPError as e:
+            log.error("Dial failed: %s", e)
+            category, msg = _classify_http(e.response.status_code if e.response is not None else None, None)
+            return CallResult(status="failed", error_message=msg, error_category=category)
         except Exception as e:
             log.error("Dial failed: %s", e)
-            return CallResult(status="failed", error_message="Call initiation failed")
+            category, msg = classify_generic(e)
+            return CallResult(status="failed", error_message=msg, error_category=category)
 
         if on_event:
             on_event("dialing", {"provider_call_id": call_id})

@@ -2,9 +2,31 @@ import logging
 import os
 import time
 from telnyx import Client
-from .base import TelephonyProvider, CallResult, CallEventCallback
+from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
 
 log = logging.getLogger("bullseye.telnyx")
+
+
+def _classify(e: BaseException) -> tuple[str, str]:
+    """Classify a Telnyx exception into (category, safe message)."""
+    name = type(e).__name__
+    status = getattr(e, "http_status", None) or getattr(e, "status", None) \
+        or getattr(e, "status_code", None)
+
+    if status in (401, 403) or name in ("AuthenticationError", "PermissionError"):
+        return ("auth_error",
+                "Telnyx credentials rejected — check TELNYX_API_KEY.")
+    if status == 422 or name == "InvalidRequestError":
+        return ("provider_error",
+                "Telnyx rejected the call parameters (from/to number or "
+                "connection ID). Check TELNYX_CONNECTION_ID and that the "
+                "from-number is assigned to that Call Control app.")
+    if status == 429:
+        return ("rate_limited", "Telnyx is rate-limiting this account.")
+    if status is not None:
+        return ("provider_error", f"Telnyx API returned HTTP {status}.")
+
+    return classify_generic(e)
 
 
 class TelnyxProvider(TelephonyProvider):
@@ -16,6 +38,11 @@ class TelnyxProvider(TelephonyProvider):
         if not self.connection_id:
             raise ValueError("TELNYX_CONNECTION_ID is required")
         self.client = Client(api_key=api_key)
+
+    def preflight(self) -> None:
+        # List phone numbers with the smallest page — cheapest authenticated
+        # round-trip that exercises DNS, TCP, TLS, HTTP, and API key auth.
+        self.client.phone_numbers.list(page_size=1)
 
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
         log.info("Dialing %s -> %s via connection %s", from_number, to_number, self.connection_id)
@@ -30,7 +57,8 @@ class TelnyxProvider(TelephonyProvider):
             log.info("Call initiated: leg_id=%s", call_leg_id)
         except Exception as e:
             log.error("Dial failed: %s", e)
-            return CallResult(status="failed", error_message="Call initiation failed")
+            category, msg = _classify(e)
+            return CallResult(status="failed", error_message=msg, error_category=category)
 
         start_time = time.time()
         max_wait = 60

@@ -54,7 +54,7 @@ import socket
 import logging
 import uuid as uuidlib
 from typing import Optional
-from providers.base import TelephonyProvider, CallResult, CallEventCallback
+from providers.base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
 
 log = logging.getLogger(__name__)
 
@@ -164,6 +164,16 @@ class FreeSwitchProvider(TelephonyProvider):
         self.endpoint_template = os.environ["FREESWITCH_ENDPOINT_TEMPLATE"]
         self.dial_timeout = int(os.environ.get("FREESWITCH_DIAL_TIMEOUT", "90"))
 
+    def preflight(self) -> None:
+        # Open an ESL connection, authenticate, close. Verifies host reachability,
+        # ESL bind, and password. Doesn't originate anything.
+        esl = _ESLClient(self.host, self.port, self.password)
+        try:
+            esl.send("api status")
+            esl.read_event(timeout=3)
+        finally:
+            esl.close()
+
     def place_call(
         self,
         from_number: str,
@@ -215,15 +225,23 @@ class FreeSwitchProvider(TelephonyProvider):
 
             return self._build_result(call_uuid, answered_at, cause)
 
-        except Exception:
+        except Exception as e:
             log.exception(
                 "FreeSWITCH call failed: from=%s to=%s uuid=%s",
                 from_number, to_number, call_uuid,
             )
+            msg_text = str(e)
+            if "auth" in msg_text.lower() or "not authorized" in msg_text.lower():
+                category, msg = ("auth_error",
+                                 "FreeSWITCH ESL rejected authentication — "
+                                 "check FREESWITCH_PASSWORD.")
+            else:
+                category, msg = classify_generic(e)
             return CallResult(
                 status="failed",
                 provider_call_id=call_uuid,
-                error_message="Call initiation failed",
+                error_message=msg,
+                error_category=category,
             )
         finally:
             if esl is not None:

@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from twilio.rest import Client
-from .base import TelephonyProvider, CallResult, CallEventCallback
+from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
 
 log = logging.getLogger("bullseye.twilio")
 
@@ -15,6 +15,36 @@ STATUS_MAP = {
     "canceled": "failed",
     "failed": "failed",
 }
+
+
+def _classify(e: BaseException) -> tuple[str, str]:
+    """Classify a Twilio exception into (category, safe message)."""
+    try:
+        from twilio.base.exceptions import TwilioRestException
+    except ImportError:
+        TwilioRestException = ()  # type: ignore[assignment]
+
+    if isinstance(e, TwilioRestException):
+        code = getattr(e, "code", None)
+        status = getattr(e, "status", None)
+        if status in (401, 403) or code in (20003, 20004):
+            return ("auth_error",
+                    "Twilio credentials rejected — check TWILIO_ACCOUNT_SID "
+                    "and TWILIO_AUTH_TOKEN.")
+        if code in (21212, 21214, 21215, 21606, 21611):
+            return ("invalid_from_number",
+                    "From-number is not a valid Twilio number in this account, "
+                    "or is not permitted to originate calls.")
+        if code in (21211, 21217, 21218, 21219):
+            return ("invalid_to_number",
+                    "Destination number rejected by Twilio (bad format or not "
+                    "permitted).")
+        if status == 429 or code == 20429:
+            return ("rate_limited", "Twilio is rate-limiting this account.")
+        return ("provider_error",
+                f"Twilio rejected the call (HTTP {status}, code {code}).")
+
+    return classify_generic(e)
 
 
 class TwilioProvider(TelephonyProvider):
@@ -44,7 +74,8 @@ class TwilioProvider(TelephonyProvider):
             log.info("Call initiated: sid=%s", call_sid)
         except Exception as e:
             log.error("Dial failed: %s", e)
-            return CallResult(status="failed", error_message="Call initiation failed")
+            category, msg = _classify(e)
+            return CallResult(status="failed", error_message=msg, error_category=category)
 
         if on_event:
             on_event("dialing", {"provider_call_id": call_sid})
@@ -75,10 +106,11 @@ class TwilioProvider(TelephonyProvider):
             except Exception as e:
                 log.error("Poll error: %s", e)
                 duration = time.time() - start_time
+                category, msg = _classify(e)
                 if on_event:
                     on_event("done", {"status": "failed", "duration": duration, "provider_call_id": call_sid})
                 return CallResult(status="failed", duration=duration, provider_call_id=call_sid,
-                                  error_message="Error polling call status")
+                                  error_message=msg, error_category=category)
 
         duration = time.time() - start_time
         if on_event:

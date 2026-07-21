@@ -2,9 +2,34 @@ import logging
 import os
 import time
 import bandwidth
-from .base import TelephonyProvider, CallResult, CallEventCallback
+from .base import TelephonyProvider, CallResult, CallEventCallback, classify_generic
 
 log = logging.getLogger("bullseye.bandwidth")
+
+
+def _classify(e: BaseException) -> tuple[str, str]:
+    """Classify a Bandwidth exception into (category, safe message)."""
+    # Bandwidth SDK raises subclasses of ApiException with a status attribute.
+    name = type(e).__name__
+    status = getattr(e, "status", None) or getattr(e, "status_code", None)
+
+    if name in ("UnauthorizedException", "ForbiddenException") or status in (401, 403):
+        return ("auth_error",
+                "Bandwidth credentials rejected — check BANDWIDTH_CLIENT_ID / "
+                "BANDWIDTH_CLIENT_SECRET (or the legacy username/password pair).")
+    if name == "BadRequestException" or status == 400:
+        return ("provider_error",
+                "Bandwidth rejected the call request (bad from/to number, "
+                "wrong application, or missing configuration).")
+    if status == 429:
+        return ("rate_limited", "Bandwidth is rate-limiting this account.")
+    if name in ("ApiException", "NotFoundException") and status == 404:
+        return ("provider_error",
+                "Bandwidth resource not found — check BANDWIDTH_APPLICATION_ID.")
+    if name == "ApiException" and status is not None:
+        return ("provider_error", f"Bandwidth API returned HTTP {status}.")
+
+    return classify_generic(e)
 
 DISCONNECT_STATUS_MAP = {
     "busy": "busy",
@@ -53,6 +78,15 @@ class BandwidthProvider(TelephonyProvider):
                 "BANDWIDTH_API_USERNAME + BANDWIDTH_API_PASSWORD (deprecated)"
             )
 
+    def preflight(self) -> None:
+        # Cheapest authenticated round-trip we can make against the account.
+        # Listing calls (page size 1) exercises DNS, TCP, TLS, HTTP, and creds
+        # without side effects. If Bandwidth is unreachable or creds are bad,
+        # this raises.
+        with bandwidth.ApiClient(self.config) as api_client:
+            calls_api = bandwidth.CallsApi(api_client)
+            calls_api.list_calls(self.account_id, size=1)
+
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
         log.info("Dialing %s -> %s", from_number, to_number)
 
@@ -72,7 +106,8 @@ class BandwidthProvider(TelephonyProvider):
                 log.info("Call initiated: call_id=%s", call_id)
             except Exception as e:
                 log.error("Dial failed: %s", e)
-                return CallResult(status="failed", error_message="Call initiation failed")
+                category, msg = _classify(e)
+                return CallResult(status="failed", error_message=msg, error_category=category)
 
             if on_event:
                 on_event("dialing", {"provider_call_id": call_id})
