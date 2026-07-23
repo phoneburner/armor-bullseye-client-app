@@ -2,7 +2,10 @@ services:
   bullseye-agent:
     build: .
     image: bullseye-agent:latest
-    container_name: bullseye-agent
+    # Defaults to "bullseye-agent". Override BULLSEYE_CONTAINER_NAME in .env
+    # if you run more than one agent on the same host (each needs a unique
+    # container name — Docker container names are global, not per-project).
+    container_name: ${BULLSEYE_CONTAINER_NAME:-bullseye-agent}
     restart: unless-stopped
     env_file:
       - .env

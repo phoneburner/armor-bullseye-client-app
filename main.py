@@ -17,7 +17,7 @@ from providers.asterisk_provider import AsteriskProvider
 from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
 
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 
 log = logging.getLogger("bullseye")
 
@@ -190,7 +190,7 @@ async def heartbeat(ws: websockets.ClientConnection):
 async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider):
     """Maintain a single WebSocket session: authenticate, dispatch tests, relay events."""
     async with websockets.connect(ws_url, ping_interval=20, ping_timeout=10, max_size=MAX_WS_MESSAGE_SIZE) as ws:
-        await ws.send(json.dumps({"type": "auth", "api_key": api_key}))
+        await ws.send(json.dumps({"type": "auth", "api_key": api_key, "version": __version__}))
         log.info("=" * 60)
         log.info("CONNECTED — agent is ready to receive tests")
         log.info("=" * 60)
