@@ -17,7 +17,7 @@ from providers.asterisk_provider import AsteriskProvider
 from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
 
-__version__ = "1.0.8"
+__version__ = "1.0.9"
 
 log = logging.getLogger("bullseye")
 
@@ -38,12 +38,15 @@ MAX_WS_MESSAGE_SIZE = 64 * 1024
 
 # Cap on how many calls can run in parallel. Provider SDKs vary in
 # thread-safety; more importantly, most telco accounts throttle at some
-# small number of concurrent originates. Override with BULLSEYE_MAX_CONCURRENT_CALLS
-# if you really need to fan out. Must be a positive integer — 0 would
-# deadlock (no test could ever acquire the semaphore) and negative /
-# non-numeric values are meaningless.
+# number of concurrent originates. The default (10) suits modest batch
+# volume. High-volume customers whose upstream sends large bursts should
+# raise BULLSEYE_MAX_CONCURRENT_CALLS to match their telco's concurrent-
+# call limit — otherwise a burst backs up behind this cap and tests wait
+# in the agent's queue before dialing. Must be a positive integer — 0
+# would deadlock (no test could ever acquire the semaphore) and
+# negative / non-numeric values are meaningless.
 def _load_max_concurrent() -> int:
-    raw = os.environ.get("BULLSEYE_MAX_CONCURRENT_CALLS", "4")
+    raw = os.environ.get("BULLSEYE_MAX_CONCURRENT_CALLS", "10")
     try:
         value = int(raw)
     except ValueError:
