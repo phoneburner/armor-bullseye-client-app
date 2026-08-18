@@ -17,11 +17,12 @@ The customer-facing entry points are:
 |------|---------|
 | `main.py` | Agent entry point. WebSocket loop, auth, reconnect with backoff, dispatch to provider. |
 | `providers/base.py` | The `TelephonyProvider` ABC. Every provider implements `place_call(from_number, to_number, on_event)`. |
-| `providers/*.py` | One file per telephony backend (twilio, bandwidth, telnyx, ringcentral, asterisk, freeswitch, proprietary). |
+| `providers/*.py` | One file per telephony backend (twilio, bandwidth, telnyx, ringcentral, asterisk, webex, freeswitch, proprietary). `webex_provider.py` subclasses the Asterisk provider. |
 | `.env.example` | Authoritative list of configuration variables with comments. |
 | `Dockerfile`, `docker-compose.yml` | Containerized deployment. |
 | `ringcentral-sidecar/` | Node.js SIP softphone — only used when `TELEPHONY_PROVIDER=ringcentral`. |
 | `sbc-asterisk/` | Optional Docker-compose stack: the agent + an embedded Asterisk container, for customers who dial through their own SBC. |
+| `webex-calling/` | Optional Docker-compose stack: the agent + an embedded Asterisk container registered to Cisco Webex Calling as generic SIP devices. `DESIGN.md` there is the spec. |
 
 Customer-facing docs:
 
@@ -54,7 +55,7 @@ The most common reasons a customer points an AI assistant at this repo:
    `LOG_LEVEL=DEBUG` to see the full WebSocket URL).
 
 4. **Add or modify a docker-compose layout** (e.g., the SBC deployment in
-   `sbc-asterisk/`). Read that directory's own README first.
+   `sbc-asterisk/` or the Webex one in `webex-calling/`). Read that directory's own README first.
 
 ## Conventions
 

@@ -1,0 +1,56 @@
+# Bullseye agent + embedded Asterisk for Cisco Webex Calling.
+#
+# Use this compose file (instead of agent/docker-compose.yml) when the
+# customer's phone system is Webex Calling. The Asterisk container
+# registers to Webex as one or more customer-managed "Generic SIP Phone"
+# devices over SIP-TLS/SRTP; the agent talks to Asterisk via ARI on
+# localhost:8088 and dials out through those registrations.
+#
+# Requires a Linux host (network_mode: host) — SIP/RTP and Docker NAT do
+# not mix. See README.md.
+
+services:
+  bullseye-asterisk:
+    # `18-current` is a floating tag. Fine for a proof-of-concept; for
+    # production, pin by digest:
+    #   docker pull andrius/asterisk:18-current
+    #   docker image inspect andrius/asterisk:18-current \
+    #     | jq -r '.[0].RepoDigests[0]'
+    # and replace this with andrius/asterisk:18-current@sha256:<digest>.
+    image: andrius/asterisk:18-current
+    container_name: ${BULLSEYE_CONTAINER_NAME:-bullseye}-asterisk
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./asterisk/templates:/etc/asterisk/templates:ro
+      - ./asterisk/entrypoint.sh:/entrypoint.sh:ro
+    env_file:
+      - .env
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  bullseye-agent:
+    build: ..
+    container_name: ${BULLSEYE_CONTAINER_NAME:-bullseye}-agent
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    depends_on:
+      bullseye-asterisk:
+        condition: service_healthy
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
