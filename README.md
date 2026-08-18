@@ -227,6 +227,19 @@ For customers who want to dial through their own SBC, the
 agent plus a preconfigured Asterisk sidecar. See
 [`sbc-asterisk/README.md`](sbc-asterisk/README.md).
 
+### Cisco Webex Calling
+
+For customers whose phone system is Webex Calling. The `webex-calling/`
+directory ships a docker-compose stack that runs the agent plus an
+embedded Asterisk sidecar which registers to Webex as customer-managed
+"Generic SIP Phone" devices (SIP-TLS + SRTP) — one per number you want
+tested — and dials out through them. No Webex API integration is needed.
+See [`webex-calling/README.md`](webex-calling/README.md) for setup and
+[`webex-calling/DESIGN.md`](webex-calling/DESIGN.md) for the design.
+
+> **Note:** Webex sets outbound caller ID from the user's/workspace's
+> configuration, so each test number needs its own Webex device/line.
+
 ### FreeSWITCH
 
 For customers running their own FreeSWITCH. The agent connects to ESL
@@ -341,7 +354,7 @@ Double-check `BULLSEYE_API_KEY` in `.env` — it should start with `bse_`.
 
 **"Error: Unsupported provider"**
 `TELEPHONY_PROVIDER` must be `bandwidth`, `twilio`, `telnyx`, `ringcentral`,
-`asterisk`, `freeswitch`, or `proprietary` (lowercase).
+`asterisk`, `webex`, `freeswitch`, or `proprietary` (lowercase).
 
 **Twilio: authentication errors**
 Use the primary Account SID + Auth Token from the Twilio Console, not an

@@ -213,6 +213,18 @@ case "${TELEPHONY_PROVIDER:-}" in
             skip "Asterisk ARI check" "ASTERISK_ARI_URL not set"
         fi
         ;;
+    webex)
+        # Agent -> Asterisk sidecar (ARI on loopback by default) ...
+        ari_url="${ASTERISK_ARI_URL:-http://127.0.0.1:8088/ari}"
+        check_tcp "Asterisk ARI (sidecar)"   "$(url_host "$ari_url")"   "$(url_port "$ari_url" 8088)"
+        # ... and sidecar -> Webex SIP-TLS. Cisco publishes SRV on
+        # _sips._tcp; 5061 is the conventional port when SRV is bypassed.
+        if [ -n "${WEBEX_OUTBOUND_PROXY:-${WEBEX_SIP_DOMAIN:-}}" ]; then
+            check_tcp "Webex SIP-TLS proxy"  "${WEBEX_OUTBOUND_PROXY:-$WEBEX_SIP_DOMAIN}" "${WEBEX_SIP_PORT:-5061}"
+        else
+            skip "Webex SIP check" "WEBEX_OUTBOUND_PROXY / WEBEX_SIP_DOMAIN not set"
+        fi
+        ;;
     freeswitch)
         if [ -n "${FREESWITCH_HOST:-}" ]; then
             # ESL is plain TCP, no HTTP — only DNS + TCP make sense.

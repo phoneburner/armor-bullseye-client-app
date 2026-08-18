@@ -14,10 +14,11 @@ from providers.telnyx_provider import TelnyxProvider
 from providers.twilio_provider import TwilioProvider
 from providers.ringcentral_provider import RingCentralProvider
 from providers.asterisk_provider import AsteriskProvider
+from providers.webex_provider import WebexProvider
 from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
 
-__version__ = "1.0.9"
+__version__ = "1.1.0"
 
 log = logging.getLogger("bullseye")
 
@@ -27,6 +28,7 @@ PROVIDERS = {
     "twilio": TwilioProvider,
     "ringcentral": RingCentralProvider,
     "asterisk": AsteriskProvider,
+    "webex": WebexProvider,
     "freeswitch": FreeSwitchProvider,
     "proprietary": ProprietaryProvider,
 }

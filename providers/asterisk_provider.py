@@ -106,13 +106,21 @@ class AsteriskProvider(TelephonyProvider):
         r = requests.get(f"{self.ari_url}/asterisk/info", auth=self.auth, timeout=5)
         r.raise_for_status()
 
+    def _build_endpoint(self, from_number: str, to_number: str) -> str:
+        """Return the ARI originate endpoint (e.g. PJSIP/+1555...@trunk).
+
+        Subclasses that pick the trunk per caller (see WebexProvider)
+        override this; the default renders ASTERISK_ENDPOINT_TEMPLATE.
+        """
+        return self.endpoint_template.format(to_number=to_number)
+
     def place_call(
         self,
         from_number: str,
         to_number: str,
         on_event: CallEventCallback | None = None,
     ) -> CallResult:
-        endpoint = self.endpoint_template.format(to_number=to_number)
+        endpoint = self._build_endpoint(from_number, to_number)
         channel_id = None
         ws = None
         try:

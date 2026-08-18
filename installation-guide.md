@@ -58,7 +58,7 @@ Before you begin, make sure you have:
 | Item | Details |
 |------|---------|
 | **Bullseye credentials** | Your Bullseye contact will provide a server URL and an API key (starts with `bse_`). |
-| **Telecom provider account** | One of: Bandwidth, Twilio, Telnyx, RingCentral, Asterisk, FreeSWITCH, or your own (Proprietary). See [section 5](#5-provider-setup). |
+| **Telecom provider account** | One of: Bandwidth, Twilio, Telnyx, RingCentral, Asterisk, Cisco Webex Calling, FreeSWITCH, or your own (Proprietary). See [section 5](#5-provider-setup). |
 | **Server / VM** | Any Linux, macOS, or Windows machine with outbound internet access. Docker recommended; Python 3.10+ is the alternative. |
 | **Network access** | Outbound HTTPS (port 443) to the Bullseye server and your provider's API. No inbound ports required. |
 
@@ -93,6 +93,7 @@ Dockerfile             # Docker image definition
 docker-compose.yml     # Docker Compose service
 .env.example           # Configuration template
 sbc-asterisk/          # Optional: SBC sidecar deployment (Asterisk + agent)
+webex-calling/         # Optional: Cisco Webex Calling deployment (Asterisk + agent)
 ```
 
 ---
@@ -112,7 +113,7 @@ Edit `.env` and fill in the required values:
 |----------|----------|-------------|
 | `BULLSEYE_SERVER_URL` | Yes | Server URL provided by Bullseye (e.g. `https://your-bullseye-server`) |
 | `BULLSEYE_API_KEY` | Yes | Your agent's API key (starts with `bse_`) |
-| `TELEPHONY_PROVIDER` | Yes | `bandwidth`, `twilio`, `telnyx`, `ringcentral`, `asterisk`, `freeswitch`, or `proprietary` |
+| `TELEPHONY_PROVIDER` | Yes | `bandwidth`, `twilio`, `telnyx`, `ringcentral`, `asterisk`, `webex`, `freeswitch`, or `proprietary` |
 
 Then set the credentials for your provider. See the next section.
 
@@ -236,6 +237,35 @@ talks to Asterisk via ARI (Asterisk REST Interface) over HTTP + WebSocket.
 `sbc-asterisk/` directory ships a docker-compose layout that runs the agent
 plus an embedded Asterisk sidecar configured against your SBC. See
 `sbc-asterisk/README.md`.
+
+### Cisco Webex Calling
+
+For customers whose phone system is Cisco Webex Calling. Bullseye dials
+through an embedded Asterisk sidecar that registers to Webex as
+customer-managed **Generic SIP Phone** devices over SIP-TLS/SRTP — one
+device per number you want tested. This uses its own docker-compose stack
+in `webex-calling/` rather than the standard one.
+
+**What you need (per number, from Control Hub):**
+- A user or workspace whose outgoing caller ID is that number.
+- A *Customer Managed Device → Generic SIP Phone* on it, and its SIP
+  username / password / outbound proxy (shown once when created).
+- Outbound PSTN calling permitted for the location.
+- A Linux Docker host with outbound TCP 5061 + UDP 10000-10999.
+
+| Variable | Description |
+|----------|-------------|
+| `WEBEX_SIP_DOMAIN` | SIP server/registrar domain shown in Control Hub |
+| `WEBEX_OUTBOUND_PROXY` | Outbound proxy shown in Control Hub (often the same host) |
+| `WEBEX_LINE_<N>_NUMBER` | E.164 number of line N (N = 1, 2, … consecutive) |
+| `WEBEX_LINE_<N>_SIP_USERNAME` | SIP username for that device |
+| `WEBEX_LINE_<N>_SIP_PASSWORD` | SIP password for that device |
+| `ARI_PASSWORD` | Local password shared between the agent and the sidecar |
+| `WEBEX_STRIP_PLUS`, `WEBEX_DIAL_PREFIX` | Optional. Dial-format tweaks for locations that need national/prefixed dialing |
+| `WEBEX_EXTERNAL_IP` | Optional. Public IP for hosts behind strict NAT |
+| `BULLSEYE_MAX_CONCURRENT_CALLS` | Keep ≤ lines × calls-per-line; start at 2 |
+
+Full walkthrough, operations and troubleshooting: `webex-calling/README.md`.
 
 ### FreeSWITCH
 
@@ -456,6 +486,13 @@ The BXML answer URL isn't reachable. From outside your environment:
 - Check `ASTERISK_ARI_URL` is reachable: `curl -u user:pass http://asterisk-host:8088/ari/asterisk/info`
 - Check the `ASTERISK_CONTEXT` and `ASTERISK_EXTENSION` exist in your Asterisk dialplan.
 - Check `ASTERISK_ENDPOINT_TEMPLATE` matches your channel tech (e.g. `PJSIP/{to_number}@trunk-name`).
+
+### Webex Calling: registration `Rejected` / `Unregistered`
+
+- `docker exec bullseye-asterisk asterisk -rx "pjsip show registrations"` shows per-line status.
+- `Rejected` → SIP username/password wrong or the device was reset in Control Hub.
+- `Unregistered` with DNS errors → try `WEBEX_SIP_PORT=5061` (bypasses the SRV lookup) and check outbound DNS/5061.
+- Both containers read the same `.env`; after any change run `docker compose down && docker compose up -d --build`.
 
 ### FreeSWITCH: ESL connection refused
 

@@ -406,6 +406,7 @@
       <strong>Telnyx</strong> — API key + Call Control Connection ID<br>
       <strong>RingCentral</strong> — Client ID, Client Secret, JWT token + Node.js 18+<br>
       <strong>Asterisk</strong> — ARI URL + credentials + a dial endpoint template<br>
+      <strong>Cisco Webex Calling</strong> — one Generic SIP Phone device (SIP username/password/proxy) per number, Linux Docker host<br>
       <strong>FreeSWITCH</strong> — ESL host + password + a dial endpoint template<br>
       <strong>Proprietary</strong> — your own network code in <code>providers/proprietary_provider.py</code>
     </td>
@@ -489,7 +490,7 @@ chmod 600 .env</code></pre>
   <tr>
     <td><code>TELEPHONY_PROVIDER</code></td>
     <td>Yes</td>
-    <td><code>bandwidth</code>, <code>twilio</code>, <code>telnyx</code>, <code>ringcentral</code>, <code>asterisk</code>, <code>freeswitch</code>, or <code>proprietary</code></td>
+    <td><code>bandwidth</code>, <code>twilio</code>, <code>telnyx</code>, <code>ringcentral</code>, <code>asterisk</code>, <code>webex</code>, <code>freeswitch</code>, or <code>proprietary</code></td>
   </tr>
 </table>
 
@@ -722,6 +723,58 @@ needed.</p>
 
 <p><strong>Additional requirements:</strong> network reachability to your Asterisk
 ARI HTTP port (8088 by default).</p>
+
+
+<h3 id="provider-webex">Cisco Webex Calling</h3>
+
+<p>
+  Use this if your phone system is Cisco Webex Calling. Bullseye dials
+  through an embedded Asterisk sidecar that registers to Webex as
+  customer-managed <strong>Generic SIP Phone</strong> devices over
+  SIP-TLS/SRTP &mdash; one device per number you want tested &mdash; and
+  places calls exactly as one of that user's phones would. No Webex API
+  integration or OAuth app is required. This provider uses its own
+  docker-compose stack in <code>webex-calling/</code> rather than the
+  standard one.
+</p>
+
+<p><strong>What you need (per number, from Control Hub):</strong></p>
+<ul>
+  <li>A user (Webex Calling Professional) or workspace whose <em>outgoing
+    caller ID</em> is set to that number</li>
+  <li>A <em>Customer Managed Device &rarr; Generic SIP Phone</em> on that
+    user/workspace, and its SIP username, password and outbound proxy
+    (shown once when the device is created)</li>
+  <li>Outbound PSTN calling permitted for the location</li>
+  <li>A Linux Docker host with outbound TCP 5061 and UDP 10000-10999</li>
+</ul>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>WEBEX_SIP_DOMAIN</code></td><td>SIP server/registrar domain shown in Control Hub</td></tr>
+  <tr><td><code>WEBEX_OUTBOUND_PROXY</code></td><td>Outbound proxy shown in Control Hub (often the same host)</td></tr>
+  <tr><td><code>WEBEX_LINE_&lt;N&gt;_NUMBER</code></td><td>E.164 number of line N (N = 1, 2, &hellip; consecutive)</td></tr>
+  <tr><td><code>WEBEX_LINE_&lt;N&gt;_SIP_USERNAME</code></td><td>SIP username for that device</td></tr>
+  <tr><td><code>WEBEX_LINE_&lt;N&gt;_SIP_PASSWORD</code></td><td>SIP password for that device</td></tr>
+  <tr><td><code>ARI_PASSWORD</code></td><td>Local password shared between the agent and the sidecar</td></tr>
+  <tr><td><code>WEBEX_STRIP_PLUS</code>, <code>WEBEX_DIAL_PREFIX</code></td><td>Optional. Dial-format tweaks for locations that need national/prefixed dialing</td></tr>
+  <tr><td><code>WEBEX_EXTERNAL_IP</code></td><td>Optional. Public IP for hosts behind strict NAT</td></tr>
+  <tr><td><code>BULLSEYE_MAX_CONCURRENT_CALLS</code></td><td>Keep &le; lines &times; calls-per-line; start at 2</td></tr>
+</table>
+
+<div class="callout callout-info">
+  <div class="callout-title">Caller ID comes from Webex, not from Bullseye</div>
+  <p>
+    Webex sets the outbound caller ID from the user's or workspace's
+    configuration, not from the SIP request. Each number you want tested
+    therefore needs its own Webex device/line, and the agent refuses tests
+    whose "from" number isn't one of the configured lines.
+  </p>
+</div>
+
+<p><strong>Additional requirements:</strong> see
+<code>webex-calling/README.md</code> for the full walkthrough, operations
+and troubleshooting.</p>
 
 
 <h3 id="provider-freeswitch">FreeSWITCH</h3>
@@ -1003,7 +1056,7 @@ the call progress in the logs:</p>
 <p>
   <code>TELEPHONY_PROVIDER</code> must be exactly one of <code>bandwidth</code>,
   <code>twilio</code>, <code>telnyx</code>, <code>ringcentral</code>,
-  <code>asterisk</code>, <code>freeswitch</code>, or <code>proprietary</code>
+  <code>asterisk</code>, <code>webex</code>, <code>freeswitch</code>, or <code>proprietary</code>
   (lowercase, no quotes).
 </p>
 
