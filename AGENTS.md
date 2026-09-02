@@ -15,7 +15,7 @@ The customer-facing entry points are:
 
 | File | Purpose |
 |------|---------|
-| `main.py` | Agent entry point. WebSocket loop, auth, reconnect with backoff, dispatch to provider. |
+| `main.py` | Agent entry point. WebSocket loop, auth, reconnect with backoff, dispatch to provider (dedicated thread pool sized to `BULLSEYE_MAX_CONCURRENT_CALLS`), result re-send spool for results stranded by a dropped connection. |
 | `providers/base.py` | The `TelephonyProvider` ABC. Every provider implements `place_call(from_number, to_number, on_event)`. |
 | `providers/*.py` | One file per telephony backend (twilio, bandwidth, telnyx, ringcentral, asterisk, freeswitch, proprietary). |
 | `.env.example` | Authoritative list of configuration variables with comments. |

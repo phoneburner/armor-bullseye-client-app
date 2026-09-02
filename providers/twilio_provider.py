@@ -68,6 +68,19 @@ class TwilioProvider(TelephonyProvider):
         if not account_sid or not auth_token:
             raise ValueError("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required")
         self.client = Client(account_sid, auth_token)
+        # The SDK's shared requests.Session defaults to a pool of 10
+        # connections; with more concurrent calls than that, poll requests
+        # queue for a socket and stretch every call's wall time. Size the
+        # pool to the agent's concurrency cap (plus slack for preflight
+        # and stragglers).
+        try:
+            from requests.adapters import HTTPAdapter
+            pool = int(os.environ.get("BULLSEYE_MAX_CONCURRENT_CALLS", "10")) + 5
+            adapter = HTTPAdapter(pool_connections=pool, pool_maxsize=pool)
+            self.client.http_client.session.mount("https://", adapter)
+        except Exception:
+            # Cosmetic optimisation — never fail startup over it.
+            log.debug("Could not resize Twilio HTTP connection pool", exc_info=True)
 
     def preflight(self) -> None:
         # Fetch the account resource: cheap, no side effects, exercises the

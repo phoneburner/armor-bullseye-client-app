@@ -3,7 +3,9 @@ import sys
 import json
 import logging
 import asyncio
+import time
 import websockets
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,7 +19,7 @@ from providers.asterisk_provider import AsteriskProvider
 from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
 
-__version__ = "1.0.9"
+__version__ = "1.0.10"
 
 log = logging.getLogger("bullseye")
 
@@ -59,10 +61,35 @@ def _load_max_concurrent() -> int:
 MAX_CONCURRENT_CALLS = _load_max_concurrent()
 _call_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CALLS)
 
+# Dedicated executor for blocking provider calls, sized to the same cap.
+# Without this, run_in_executor(None, ...) lands on asyncio's DEFAULT
+# ThreadPoolExecutor — min(32, cpu_count + 4) threads — which silently
+# becomes the real concurrency ceiling: the semaphore admits N tests but
+# only that many can actually be dialing, and the rest wait for a thread
+# while occupying a slot. (Observed in production 2026-09-02: cap 50,
+# true active calls ~15-22, dial latency ~4 min.)
+_call_executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_CALLS, thread_name_prefix="call")
+
 # Test IDs currently in flight (or recently completed). Prevents the server
 # from re-dispatching the same test — either due to a reconnect race or a
 # retried delivery — while it's still executing.
 _inflight_tests: set[str] = set()
+
+# Results that could not be delivered because the WebSocket dropped
+# mid-call. The provider call keeps running in its thread after the
+# connection (and this test's coroutine) dies; when it finishes, the
+# result lands here and is re-sent on the next successful connection.
+# Without this, an in_progress test is orphaned server-side: the server
+# only re-pushes *pending* tests on reconnect, so the result would be
+# lost and the test eventually failed out by the server's reaper.
+# In-memory on purpose — if the whole process dies, the in-flight calls
+# and their results die with it and the server reaper is the remedy.
+_unsent_results: dict[str, dict] = {}  # test_id -> {"msg": <result payload>, "ts": float}
+
+# Drop spooled results older than this. The server reaper fails a test
+# out after ~15 min and logs (but ignores) later results, so a very old
+# result has diagnostic value only — not worth unbounded growth.
+RESULT_SPOOL_TTL = 3600
 
 BANNER = """
         ooooooooooo
@@ -143,7 +170,30 @@ async def _handle_test_inner(provider, ws, test_id, from_number, to_number):
         log.info("Test %s: status=%s duration=%.1fs", test_id, result.status, result.duration or 0)
         return result
 
-    call_future = loop.run_in_executor(None, run_call)
+    call_future = loop.run_in_executor(_call_executor, run_call)
+
+    # Spool the result the moment the provider thread finishes. If the
+    # normal send below succeeds it is removed again; if this coroutine
+    # was cancelled by a WebSocket drop, the entry survives and is
+    # re-sent after reconnect (see flush_unsent_results).
+    def _spool(fut):
+        if fut.cancelled() or fut.exception() is not None:
+            return
+        r = fut.result()
+        _unsent_results[test_id] = {
+            "msg": {
+                "type": "result",
+                "test_id": test_id,
+                "call_status": r.status,
+                "call_duration": r.duration,
+                "provider_call_id": r.provider_call_id,
+                "error_message": r.error_message,
+                "error_category": r.error_category,
+            },
+            "ts": time.time(),
+        }
+
+    call_future.add_done_callback(_spool)
 
     async def forward_events():
         """Forward intermediate call events to the server. Terminal 'done' events are
@@ -168,24 +218,48 @@ async def _handle_test_inner(provider, ws, test_id, from_number, to_number):
     await forward_events()
     result = await call_future
 
-    await ws.send(json.dumps({
-        "type": "result",
-        "test_id": test_id,
-        "call_status": result.status,
-        "call_duration": result.duration,
-        "provider_call_id": result.provider_call_id,
-        "error_message": result.error_message,
-        "error_category": result.error_category,
-    }))
+    await ws.send(json.dumps(_unsent_results[test_id]["msg"]))
+    # Delivered on the live connection — nothing left to re-send.
+    _unsent_results.pop(test_id, None)
     log.info("Test %s: result sent (%s)", test_id, result.status)
 
 
+async def flush_unsent_results(ws: websockets.ClientConnection, min_age: float = 0.0):
+    """Re-send results whose original delivery was lost to a dropped connection.
+
+    min_age guards the live-path race: a result flowing through the normal
+    send in _handle_test_inner sits in _unsent_results for only an instant,
+    so the periodic flusher skips young entries rather than double-sending.
+    Entries older than RESULT_SPOOL_TTL are dropped (the server reaper has
+    long since failed the test out and would ignore the result anyway).
+    """
+    now = time.time()
+    for test_id, entry in list(_unsent_results.items()):
+        age = now - entry["ts"]
+        if age > RESULT_SPOOL_TTL:
+            log.warning("Dropping spooled result for test %s (age %.0fs > TTL)", test_id, age)
+            _unsent_results.pop(test_id, None)
+            continue
+        if age < min_age:
+            continue
+        await ws.send(json.dumps(entry["msg"]))
+        _unsent_results.pop(test_id, None)
+        log.info("Re-sent spooled result for test %s (%s) after %.0fs",
+                 test_id, entry["msg"].get("call_status"), age)
+
+
 async def heartbeat(ws: websockets.ClientConnection):
-    """Send periodic pings to keep the WebSocket connection alive."""
+    """Send periodic pings to keep the WebSocket connection alive.
+
+    Also flushes spooled results each tick: a call that was in flight when
+    a previous connection dropped finishes *during* this connection, so its
+    result lands in the spool with no reconnect coming to deliver it.
+    """
     try:
         while True:
             await asyncio.sleep(HEARTBEAT_INTERVAL)
             await ws.send(json.dumps({"type": "ping"}))
+            await flush_unsent_results(ws, min_age=15.0)
     except Exception:
         pass
 
@@ -197,6 +271,11 @@ async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider
         log.info("=" * 60)
         log.info("CONNECTED — agent is ready to receive tests")
         log.info("=" * 60)
+
+        # Deliver any results stranded by the previous connection before
+        # processing new work. Failures here drop us back to the reconnect
+        # loop with the spool intact.
+        await flush_unsent_results(ws)
 
         heartbeat_task = asyncio.create_task(heartbeat(ws))
         # Track the call tasks spawned on THIS connection so we can cancel
