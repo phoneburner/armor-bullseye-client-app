@@ -219,19 +219,24 @@ async def _handle_test_inner(provider, ws, test_id, from_number, to_number):
     result = await call_future
 
     await ws.send(json.dumps(_unsent_results[test_id]["msg"]))
-    # Delivered on the live connection — nothing left to re-send.
-    _unsent_results.pop(test_id, None)
-    log.info("Test %s: result sent (%s)", test_id, result.status)
+    # NOT unspooled here: a successful ws.send() only proves the bytes left
+    # this process, not that the server processed them. The entry is removed
+    # when the server's "completed" ack arrives (see connect_and_run); until
+    # then the heartbeat flusher may re-send it, which is safe — the server
+    # drops duplicate results for completed tests.
+    log.info("Test %s: result sent (%s), awaiting ack", test_id, result.status)
 
 
 async def flush_unsent_results(ws: websockets.ClientConnection, min_age: float = 0.0):
     """Re-send results whose original delivery was lost to a dropped connection.
 
-    min_age guards the live-path race: a result flowing through the normal
-    send in _handle_test_inner sits in _unsent_results for only an instant,
-    so the periodic flusher skips young entries rather than double-sending.
-    Entries older than RESULT_SPOOL_TTL are dropped (the server reaper has
-    long since failed the test out and would ignore the result anyway).
+    Entries stay spooled until the server's "completed" ack removes them
+    (a ws.send() alone proves nothing about server-side processing), so
+    min_age keeps the flusher from re-sending a result whose first send or
+    ack is still in flight. Re-sends are safe: the server drops duplicate
+    results for completed tests and still acks them. Entries older than
+    RESULT_SPOOL_TTL are dropped (the server reaper failed the test out
+    long ago and would ignore the result anyway).
     """
     now = time.time()
     for test_id, entry in list(_unsent_results.items()):
@@ -243,7 +248,9 @@ async def flush_unsent_results(ws: websockets.ClientConnection, min_age: float =
         if age < min_age:
             continue
         await ws.send(json.dumps(entry["msg"]))
-        _unsent_results.pop(test_id, None)
+        # Kept in the spool until the server's "completed" ack removes it —
+        # if this send is lost, a later flush retries (the server drops
+        # duplicates for already-completed tests, so retries are safe).
         log.info("Re-sent spooled result for test %s (%s) after %.0fs",
                  test_id, entry["msg"].get("call_status"), age)
 
@@ -294,6 +301,12 @@ async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider
                     task.add_done_callback(call_tasks.discard)
                 elif msg_type == "ack":
                     log.debug("Server ack: test %s -> %s", msg.get("test_id"), msg.get("status"))
+                    # A "completed" ack is the server confirming it processed
+                    # (or deliberately dropped a duplicate of) our result —
+                    # only now is the spooled copy safe to discard.
+                    if msg.get("status") == "completed":
+                        if _unsent_results.pop(msg.get("test_id"), None) is not None:
+                            log.debug("Result for test %s acknowledged; unspooled", msg.get("test_id"))
                 elif msg_type == "pong":
                     pass
                 else:
