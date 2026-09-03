@@ -91,6 +91,16 @@ _unsent_results: dict[str, dict] = {}  # test_id -> {"msg": <result payload>, "t
 # result has diagnostic value only — not worth unbounded growth.
 RESULT_SPOOL_TTL = 3600
 
+# The `start` message is a claim handshake: servers ack it with status
+# "in_progress" (claim accepted) or "completed" (test already terminal —
+# e.g. reaped after waiting too long in our queue — do NOT place the
+# call). Futures here connect the ack listener in connect_and_run to the
+# test task awaiting its claim. If no ack arrives within the timeout we
+# proceed with the call: an old server whose ack was lost must not stall
+# testing, and duplicates are safe server-side.
+START_ACK_TIMEOUT = 5
+_start_acks: dict[str, asyncio.Future] = {}
+
 BANNER = """
         ooooooooooo
       oo           oo
@@ -156,7 +166,23 @@ async def handle_test(provider: TelephonyProvider, ws: websockets.ClientConnecti
 
 
 async def _handle_test_inner(provider, ws, test_id, from_number, to_number):
-    await ws.send(json.dumps({"type": "start", "test_id": test_id}))
+    claim = asyncio.get_event_loop().create_future()
+    _start_acks[test_id] = claim
+    try:
+        await ws.send(json.dumps({"type": "start", "test_id": test_id}))
+        try:
+            ack_status = await asyncio.wait_for(claim, timeout=START_ACK_TIMEOUT)
+        except (asyncio.TimeoutError, TimeoutError):
+            ack_status = None  # no ack (older server / lost frame): proceed
+    finally:
+        _start_acks.pop(test_id, None)
+
+    if ack_status == "completed":
+        # The server already closed this test (reaped while it waited in
+        # our queue). Placing the call now would bill the customer for a
+        # result nobody will accept — abort before dialing.
+        log.warning("Test %s: server refused start (already terminal); aborting without dialing", test_id)
+        return
 
     event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
     loop = asyncio.get_event_loop()
@@ -301,6 +327,11 @@ async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider
                     task.add_done_callback(call_tasks.discard)
                 elif msg_type == "ack":
                     log.debug("Server ack: test %s -> %s", msg.get("test_id"), msg.get("status"))
+                    # Resolve a pending start-claim, if this test is waiting
+                    # on one (see _handle_test_inner).
+                    claim = _start_acks.get(msg.get("test_id"))
+                    if claim is not None and not claim.done():
+                        claim.set_result(msg.get("status"))
                     # A "completed" ack is the server confirming it processed
                     # (or deliberately dropped a duplicate of) our result —
                     # only now is the spooled copy safe to discard.
