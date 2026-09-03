@@ -224,6 +224,9 @@ case "${TELEPHONY_PROVIDER:-}" in
     proprietary)
         skip "provider check" "proprietary — customer's own network; test it yourself"
         ;;
+    mock)
+        skip "provider check" "mock — no real provider"
+        ;;
     *)
         skip "provider check" "TELEPHONY_PROVIDER=${TELEPHONY_PROVIDER:-<unset>} not recognized"
         ;;

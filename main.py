@@ -18,6 +18,7 @@ from providers.ringcentral_provider import RingCentralProvider
 from providers.asterisk_provider import AsteriskProvider
 from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
+from providers.mock_provider import MockProvider
 
 __version__ = "1.0.10"
 
@@ -31,6 +32,7 @@ PROVIDERS = {
     "asterisk": AsteriskProvider,
     "freeswitch": FreeSwitchProvider,
     "proprietary": ProprietaryProvider,
+    "mock": MockProvider,
 }
 
 RECONNECT_DELAY = 3
