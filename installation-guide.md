@@ -466,14 +466,16 @@ The BXML answer URL isn't reachable. From outside your environment:
 ### Kubernetes: results lost on every deploy
 
 If you run the agent on Kubernetes, set the pod's
-`terminationGracePeriodSeconds` to at least `BULLSEYE_SHUTDOWN_TIMEOUT`
-(default 120; Kubernetes defaults the grace period to only 30):
+`terminationGracePeriodSeconds` to `BULLSEYE_SHUTDOWN_TIMEOUT` plus about
+30 seconds (the timeout defaults to 120; Kubernetes defaults the grace
+period to only 30 in total). The extra allowance covers waiting for the
+server to acknowledge the drained results and closing the connection:
 
 ```yaml
 spec:
   template:
     spec:
-      terminationGracePeriodSeconds: 130
+      terminationGracePeriodSeconds: 150   # 120s timeout + 30s
 ```
 
 The agent finishes its in-flight calls and reports their results before

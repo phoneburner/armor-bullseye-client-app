@@ -108,7 +108,20 @@ _shutdown = asyncio.Event()
 # a full call to complete. On Kubernetes, set the pod's
 # terminationGracePeriodSeconds to at least this value, or the kubelet
 # SIGKILLs us before we finish.
-GRACEFUL_SHUTDOWN_SECS = int(os.environ.get("BULLSEYE_SHUTDOWN_TIMEOUT", "120"))
+def _load_shutdown_timeout() -> int:
+    raw = os.environ.get("BULLSEYE_SHUTDOWN_TIMEOUT", "120")
+    try:
+        value = int(raw)
+    except ValueError:
+        sys.exit(f"Error: BULLSEYE_SHUTDOWN_TIMEOUT must be an integer, got {raw!r}")
+    if value < 1:
+        # 0 or negative would make asyncio.wait() return instantly with every
+        # call still running — a hard shutdown wearing a graceful one's logs.
+        sys.exit(f"Error: BULLSEYE_SHUTDOWN_TIMEOUT must be >= 1, got {value}")
+    return value
+
+
+GRACEFUL_SHUTDOWN_SECS = _load_shutdown_timeout()
 
 # The `start` message is a claim handshake: servers ack it with status
 # "in_progress" (claim accepted) or "completed" (test already terminal —
@@ -179,6 +192,17 @@ async def handle_test(provider: TelephonyProvider, ws: websockets.ClientConnecti
 
     try:
         async with _call_semaphore:
+            # Re-check after acquiring the slot: this task may have been
+            # queued behind the semaphore when shutdown began, and a slot
+            # frees up precisely because a draining call just finished.
+            # Starting here would dial a brand-new (billable) call we have
+            # no time to finish — worse than not starting it at all. We
+            # never send `start`, so the test stays pending server-side and
+            # is re-delivered to the replacement process.
+            if _shutdown.is_set():
+                log.info("Shutting down — not starting queued test %s; "
+                         "server will re-deliver it", test_id)
+                return
             await _handle_test_inner(provider, ws, test_id, from_number, to_number)
     finally:
         _inflight_tests.discard(test_id)
@@ -217,26 +241,14 @@ async def _handle_test_inner(provider, ws, test_id, from_number, to_number):
 
     call_future = loop.run_in_executor(_call_executor, run_call)
 
-    # Spool the result the moment the provider thread finishes. If the
-    # normal send below succeeds it is removed again; if this coroutine
-    # was cancelled by a WebSocket drop, the entry survives and is
-    # re-sent after reconnect (see flush_unsent_results).
+    # Spool the result the moment the provider thread finishes, so that a
+    # result produced after this coroutine is cancelled (WebSocket drop)
+    # still gets re-sent after reconnect. The coroutine below spools it
+    # itself if this callback has not run yet — see _spool_result.
     def _spool(fut):
         if fut.cancelled() or fut.exception() is not None:
             return
-        r = fut.result()
-        _unsent_results[test_id] = {
-            "msg": {
-                "type": "result",
-                "test_id": test_id,
-                "call_status": r.status,
-                "call_duration": r.duration,
-                "provider_call_id": r.provider_call_id,
-                "error_message": r.error_message,
-                "error_category": r.error_category,
-            },
-            "ts": time.time(),
-        }
+        _spool_result(test_id, fut.result())
 
     call_future.add_done_callback(_spool)
 
@@ -263,13 +275,36 @@ async def _handle_test_inner(provider, ws, test_id, from_number, to_number):
     await forward_events()
     result = await call_future
 
-    await ws.send(json.dumps(_unsent_results[test_id]["msg"]))
+    # `await` on an already-completed future resumes this coroutine
+    # WITHOUT yielding to the event loop, so the _spool done-callback —
+    # queued with call_soon when the future completed — may not have run
+    # yet. Spool it ourselves in that case rather than assuming.
+    entry = _unsent_results.get(test_id) or _spool_result(test_id, result)
+    await ws.send(json.dumps(entry["msg"]))
     # NOT unspooled here: a successful ws.send() only proves the bytes left
     # this process, not that the server processed them. The entry is removed
     # when the server's "completed" ack arrives (see connect_and_run); until
     # then the heartbeat flusher may re-send it, which is safe — the server
     # drops duplicate results for completed tests.
     log.info("Test %s: result sent (%s), awaiting ack", test_id, result.status)
+
+
+def _spool_result(test_id: str, result) -> dict:
+    """Record a result for delivery (and re-delivery) and return its entry."""
+    entry = {
+        "msg": {
+            "type": "result",
+            "test_id": test_id,
+            "call_status": result.status,
+            "call_duration": result.duration,
+            "provider_call_id": result.provider_call_id,
+            "error_message": result.error_message,
+            "error_category": result.error_category,
+        },
+        "ts": time.time(),
+    }
+    _unsent_results[test_id] = entry
+    return entry
 
 
 async def flush_unsent_results(ws: websockets.ClientConnection, min_age: float = 0.0):
@@ -512,4 +547,17 @@ if __name__ == "__main__":
     )
     logging.getLogger("twilio.http_client").setLevel(logging.WARNING)
     print(BANNER.format(__version__), flush=True)
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        # Provider calls run in non-daemon executor threads that cannot be
+        # interrupted. ThreadPoolExecutor registers an atexit hook that
+        # JOINS those threads, so a straggler would hold the process open
+        # long past BULLSEYE_SHUTDOWN_TIMEOUT — the Twilio provider polls
+        # for up to 120s — and we would be SIGKILLed mid-wait anyway, with
+        # the shutdown log already claiming we were done. Everything we
+        # could deliver has been delivered by now, so leave immediately
+        # and keep the configured timeout honest.
+        _call_executor.shutdown(wait=False, cancel_futures=True)
+        logging.shutdown()
+        os._exit(0)

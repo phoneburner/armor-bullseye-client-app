@@ -310,16 +310,18 @@ call takes roughly 60-90 seconds, so the default lets a call in progress
 run to completion.
 
 > **Running on Kubernetes?** Set the pod's
-> `terminationGracePeriodSeconds` to at least `BULLSEYE_SHUTDOWN_TIMEOUT`
-> (the Kubernetes default is only 30). Otherwise the kubelet force-kills
-> the agent part-way through, and the results of every call in flight are
+> `terminationGracePeriodSeconds` to `BULLSEYE_SHUTDOWN_TIMEOUT` **plus
+> about 30 seconds** (Kubernetes defaults it to 30 in total). The extra
+> allowance covers waiting for the server to acknowledge the drained
+> results and closing the connection. Otherwise the kubelet force-kills
+> the agent part-way through and the results of every call in flight are
 > lost on each deploy, scale-down or node drain:
 >
 > ```yaml
 > spec:
 >   template:
 >     spec:
->       terminationGracePeriodSeconds: 130
+>       terminationGracePeriodSeconds: 150   # 120s timeout + 30s
 > ```
 
 ### Logging

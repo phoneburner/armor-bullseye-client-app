@@ -946,14 +946,16 @@ the call progress in the logs:</p>
 <div class="callout callout-warning">
   <div class="callout-title">Running on Kubernetes? Set the grace period</div>
   <p>
-    Set the pod's <code>terminationGracePeriodSeconds</code> to at least
-    <code>BULLSEYE_SHUTDOWN_TIMEOUT</code> &mdash; Kubernetes defaults it to
-    only 30 seconds:
+    Set the pod's <code>terminationGracePeriodSeconds</code> to
+    <code>BULLSEYE_SHUTDOWN_TIMEOUT</code> <strong>plus about 30 seconds</strong>
+    &mdash; Kubernetes defaults it to only 30 in total. The extra allowance
+    covers waiting for the server to acknowledge the drained results and
+    closing the connection:
   </p>
   <pre><code>spec:
   template:
     spec:
-      terminationGracePeriodSeconds: 130</code></pre>
+      terminationGracePeriodSeconds: 150   # 120s timeout + 30s</code></pre>
   <p>
     The agent can only finish its in-flight calls if the kubelet gives it the
     time. With the default grace period, every deploy, scale-down or node
