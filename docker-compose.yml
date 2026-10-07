@@ -13,7 +13,10 @@ services:
       # When the RC sidecar is running in Docker, reach it by service name.
       # Overridden only if RINGCENTRAL_SIDECAR_URL is NOT already set in .env.
       - RINGCENTRAL_SIDECAR_URL=http://ringcentral-sidecar:3000
-    stop_grace_period: 10s
+    # Give the agent time to finish in-flight calls on `docker compose
+    # down` / `stop` before Docker SIGKILLs it. Keep this at or above
+    # BULLSEYE_SHUTDOWN_TIMEOUT (default 120s).
+    stop_grace_period: 130s
     logging:
       driver: json-file
       options:

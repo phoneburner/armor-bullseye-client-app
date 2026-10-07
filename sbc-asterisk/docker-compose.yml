@@ -42,6 +42,9 @@ services:
     depends_on:
       bullseye-asterisk:
         condition: service_healthy
+    # Let the agent finish in-flight calls on shutdown (see
+    # BULLSEYE_SHUTDOWN_TIMEOUT); Docker's default is only 10s.
+    stop_grace_period: 130s
     logging:
       driver: json-file
       options:

@@ -928,6 +928,41 @@ the call progress in the logs:</p>
 
 <p>All configuration is done through the <code>.env</code> file.</p>
 
+<h3>Shutdown behaviour</h3>
+
+<p>
+  When the agent is told to stop &mdash; <code>docker compose down</code>, a
+  Kubernetes pod termination, or Ctrl-C &mdash; it shuts down gracefully: it
+  stops accepting new tests, waits for the calls already in flight to finish,
+  delivers their results to the Bullseye server, then exits. A second stop
+  signal exits immediately.
+</p>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>BULLSEYE_SHUTDOWN_TIMEOUT</code></td><td>Optional. Seconds to wait for in-flight calls on shutdown (default <code>120</code>). A test call runs roughly 60-90 seconds, so the default allows one to complete.</td></tr>
+</table>
+
+<div class="callout callout-warning">
+  <div class="callout-title">Running on Kubernetes? Set the grace period</div>
+  <p>
+    Set the pod's <code>terminationGracePeriodSeconds</code> to at least
+    <code>BULLSEYE_SHUTDOWN_TIMEOUT</code> &mdash; Kubernetes defaults it to
+    only 30 seconds:
+  </p>
+  <pre><code>spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 130</code></pre>
+  <p>
+    The agent can only finish its in-flight calls if the kubelet gives it the
+    time. With the default grace period, every deploy, scale-down or node
+    drain force-kills the agent part-way through and the results of all calls
+    in flight are lost &mdash; those tests are reported as failed even though
+    the calls themselves may have connected normally.
+  </p>
+</div>
+
 <h3>Log verbosity</h3>
 <p>Set <code>LOG_LEVEL</code> to control how much the agent logs:</p>
 

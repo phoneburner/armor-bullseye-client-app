@@ -3,6 +3,7 @@ import sys
 import json
 import logging
 import asyncio
+import signal
 import time
 import websockets
 from concurrent.futures import ThreadPoolExecutor
@@ -20,7 +21,7 @@ from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
 from providers.mock_provider import MockProvider
 
-__version__ = "1.0.10"
+__version__ = "1.0.11"
 
 log = logging.getLogger("bullseye")
 
@@ -92,6 +93,22 @@ _unsent_results: dict[str, dict] = {}  # test_id -> {"msg": <result payload>, "t
 # out after ~15 min and logs (but ignores) later results, so a very old
 # result has diagnostic value only — not worth unbounded growth.
 RESULT_SPOOL_TTL = 3600
+
+# Set when the process is asked to stop (SIGTERM from Kubernetes/Docker,
+# or Ctrl-C). The agent then stops accepting new tests, lets the calls
+# already in flight finish, flushes their results, and exits. Without
+# this the process died instantly on SIGTERM and every in-flight call's
+# result was lost — so a routine rolling deploy or node drain silently
+# cost the customer a batch of test results (observed with Rocket,
+# 2026-10-06). A second signal exits immediately.
+_shutdown = asyncio.Event()
+
+# How long to wait for in-flight calls during a graceful shutdown. Calls
+# run ~60-90s (ring + the randomized 35-55s hold), so the default allows
+# a full call to complete. On Kubernetes, set the pod's
+# terminationGracePeriodSeconds to at least this value, or the kubelet
+# SIGKILLs us before we finish.
+GRACEFUL_SHUTDOWN_SECS = int(os.environ.get("BULLSEYE_SHUTDOWN_TIMEOUT", "120"))
 
 # The `start` message is a claim handshake: servers ack it with status
 # "in_progress" (claim accepted) or "completed" (test already terminal —
@@ -299,6 +316,73 @@ async def heartbeat(ws: websockets.ClientConnection):
         pass
 
 
+async def _wait_for_acks(timeout: float):
+    """Block until every spooled result has been acknowledged, or timeout."""
+    deadline = time.time() + timeout
+    while _unsent_results and time.time() < deadline:
+        await asyncio.sleep(0.1)
+
+
+async def _drain_and_close(ws, call_tasks: set):
+    """On shutdown: finish in-flight calls, deliver their results, then close.
+
+    Runs alongside the receive loop so acks keep arriving while we drain —
+    a result is only unspooled once the server acknowledges it.
+    """
+    await _shutdown.wait()
+    log.info("Shutdown requested — no new tests will be accepted; "
+             "%d call(s) in flight, waiting up to %ds", len(call_tasks), GRACEFUL_SHUTDOWN_SECS)
+    if call_tasks:
+        _, pending = await asyncio.wait(set(call_tasks), timeout=GRACEFUL_SHUTDOWN_SECS)
+        if pending:
+            log.warning("%d call(s) did not finish in time; their results will be lost "
+                        "(raise BULLSEYE_SHUTDOWN_TIMEOUT and the pod's "
+                        "terminationGracePeriodSeconds if this recurs)", len(pending))
+        else:
+            log.info("All in-flight calls finished")
+    # A result sent moments ago is still spooled while its ack is in
+    # flight. Wait for those to land BEFORE flushing, or the flush
+    # re-sends them — harmless (the server drops duplicates for completed
+    # tests) but it litters the server log with LATE RESULT DROPPED on
+    # every normal shutdown, in exactly the logs used to diagnose real
+    # incidents.
+    await _wait_for_acks(3.0)
+    if _unsent_results:
+        try:
+            await flush_unsent_results(ws)
+        except Exception as e:
+            log.warning("Could not flush results during shutdown: %s", e)
+        await _wait_for_acks(5.0)
+    if _unsent_results:
+        log.warning("%d result(s) unacknowledged at exit", len(_unsent_results))
+    else:
+        log.info("All results delivered and acknowledged")
+    await ws.close()
+
+
+def _request_shutdown(signame: str):
+    if _shutdown.is_set():
+        log.warning("Second %s — exiting now; in-flight results will be lost", signame)
+        os._exit(1)
+    log.info("Received %s — shutting down gracefully", signame)
+    _shutdown.set()
+
+
+def install_signal_handlers():
+    """Route SIGTERM/SIGINT into the graceful-shutdown path.
+
+    SIGTERM is what Kubernetes and `docker stop` send. Falls back to
+    signal.signal() where the event loop doesn't support signal handlers.
+    """
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _request_shutdown, sig.name)
+        except (NotImplementedError, RuntimeError):
+            signal.signal(sig, lambda s, _f: loop.call_soon_threadsafe(
+                _request_shutdown, signal.Signals(s).name))
+
+
 async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider):
     """Maintain a single WebSocket session: authenticate, dispatch tests, relay events."""
     async with websockets.connect(ws_url, ping_interval=20, ping_timeout=10, max_size=MAX_WS_MESSAGE_SIZE) as ws:
@@ -318,12 +402,22 @@ async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider
         # socket would fail its final send, discard its in-flight ID, and
         # race the server's re-delivery on reconnect.
         call_tasks: set[asyncio.Task] = set()
+        # Waits for SIGTERM, then drains in-flight calls and closes the
+        # socket (which ends the receive loop below).
+        drain_task = asyncio.create_task(_drain_and_close(ws, call_tasks))
         try:
             async for raw_msg in ws:
                 msg = json.loads(raw_msg)
                 msg_type = msg.get("type")
 
                 if msg_type == "test":
+                    if _shutdown.is_set():
+                        # Don't start work we can't finish. We never send
+                        # `start`, so the test stays pending server-side and
+                        # is re-delivered to the replacement process.
+                        log.info("Shutting down — declining test %s; server will re-deliver it",
+                                 msg.get("id"))
+                        continue
                     task = asyncio.create_task(handle_test(provider, ws, msg))
                     call_tasks.add(task)
                     task.add_done_callback(call_tasks.discard)
@@ -346,6 +440,7 @@ async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider
                     log.warning("Unknown message type: %s", msg_type)
         finally:
             heartbeat_task.cancel()
+            drain_task.cancel()
             # Cancel any call tasks still attached to this (now closing)
             # connection. Queued tasks unwind cleanly and release their
             # in-flight ID so the server's re-delivery on reconnect is
@@ -359,6 +454,7 @@ async def connect_and_run(ws_url: str, api_key: str, provider: TelephonyProvider
 
 async def main():
     ws_url, api_key, provider_name = get_config()
+    install_signal_handlers()
 
     provider = PROVIDERS[provider_name]()
     # Don't log the full server URL at INFO — keeps it out of pasted-log
@@ -392,8 +488,19 @@ async def main():
         except Exception as e:
             log.error("Connection error: %s", e)
 
+        if _shutdown.is_set():
+            log.info("Shutdown complete")
+            break
+
         log.info("Reconnecting in %ds...", delay)
-        await asyncio.sleep(delay)
+        # Interruptible backoff: a SIGTERM during the wait exits promptly
+        # instead of sitting out the full delay.
+        try:
+            await asyncio.wait_for(_shutdown.wait(), timeout=delay)
+            log.info("Shutdown complete")
+            break
+        except (asyncio.TimeoutError, TimeoutError):
+            pass
         delay = min(delay * 2, MAX_RECONNECT_DELAY)
 
 
