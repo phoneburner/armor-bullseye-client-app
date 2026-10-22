@@ -463,6 +463,28 @@ The BXML answer URL isn't reachable. From outside your environment:
 - Confirm `event_socket.conf.xml` binds to an interface reachable from the agent.
 - Test from the agent host: `nc -vz $FREESWITCH_HOST $FREESWITCH_PORT`.
 
+### Kubernetes: results lost on every deploy
+
+If you run the agent on Kubernetes, set the pod's
+`terminationGracePeriodSeconds` to `BULLSEYE_SHUTDOWN_TIMEOUT` plus about
+30 seconds (the timeout defaults to 120; Kubernetes defaults the grace
+period to only 30 in total). The extra allowance covers waiting for the
+server to acknowledge the drained results and closing the connection:
+
+```yaml
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 150   # 120s timeout + 30s
+```
+
+The agent finishes its in-flight calls and reports their results before
+exiting, but it can only do that if the kubelet gives it the time. With
+the default 30s grace period, every deploy, scale-down or node drain
+force-kills the agent part-way through and the results of all calls in
+flight are lost — they are reported to you as failed even though the
+calls themselves may have connected normally.
+
 ### Updating the agent
 
 ```bash
