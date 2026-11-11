@@ -282,6 +282,10 @@ EnvironmentFile=/opt/bullseye/agent/.env
 ExecStart=/opt/bullseye/agent/.venv/bin/python main.py
 Restart=always
 RestartSec=5
+# Must exceed BULLSEYE_SHUTDOWN_TIMEOUT (default 120) plus ~30s for result
+# acks and connection close. systemd's default is 90s, which SIGKILLs the
+# agent mid-drain and discards the in-flight results on every restart.
+TimeoutStopSec=150
 
 [Install]
 WantedBy=multi-user.target

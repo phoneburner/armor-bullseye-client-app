@@ -4,6 +4,7 @@ import json
 import logging
 import asyncio
 import signal
+import traceback
 import time
 import websockets
 from concurrent.futures import ThreadPoolExecutor
@@ -547,8 +548,24 @@ if __name__ == "__main__":
     )
     logging.getLogger("twilio.http_client").setLevel(logging.WARNING)
     print(BANNER.format(__version__), flush=True)
+    exit_code = 0
     try:
         asyncio.run(main())
+    except SystemExit as exc:
+        # get_config() reports fatal misconfiguration with sys.exit("Error: ...").
+        # os._exit() below bypasses the interpreter's normal SystemExit handling,
+        # so print the message and preserve the status here or the operator sees
+        # a silent exit 0 and a container that restarts forever with no clue why.
+        if isinstance(exc.code, str):
+            print(exc.code, file=sys.stderr, flush=True)
+            exit_code = 1
+        elif exc.code is not None:
+            exit_code = exc.code
+    except KeyboardInterrupt:
+        exit_code = 130
+    except BaseException:
+        traceback.print_exc()
+        exit_code = 1
     finally:
         # Provider calls run in non-daemon executor threads that cannot be
         # interrupted. ThreadPoolExecutor registers an atexit hook that
@@ -560,4 +577,4 @@ if __name__ == "__main__":
         # and keep the configured timeout honest.
         _call_executor.shutdown(wait=False, cancel_futures=True)
         logging.shutdown()
-        os._exit(0)
+        os._exit(exit_code)

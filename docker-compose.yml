@@ -44,7 +44,11 @@ services:
       - SIDECAR_BIND=0.0.0.0
     expose:
       - "3000"
-    stop_grace_period: 10s
+    # Must be >= the agent's grace period. Compose SIGTERMs every service in
+    # parallel, so a shorter window here SIGKILLs the sidecar partway through
+    # the agent's call drain and fails exactly the in-flight calls the drain
+    # exists to save.
+    stop_grace_period: 150s
     logging:
       driver: json-file
       options:
