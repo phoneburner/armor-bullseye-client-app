@@ -251,7 +251,7 @@ everything else. See
 | `docker compose up -d --build` | Start or rebuild |
 | `docker compose --profile ringcentral up -d --build` | Start with RingCentral sidecar |
 | `docker compose down` | Stop |
-| `docker compose restart` | Restart (picks up `.env` changes) |
+| `docker compose restart` | Restart (does **not** re-read `.env` — use `down` then `up` for that) |
 | `docker logs -f bullseye-agent` | Tail logs |
 | `docker logs --tail 100 bullseye-agent` | Last 100 lines |
 
@@ -282,6 +282,10 @@ EnvironmentFile=/opt/bullseye/agent/.env
 ExecStart=/opt/bullseye/agent/.venv/bin/python main.py
 Restart=always
 RestartSec=5
+# Must exceed BULLSEYE_SHUTDOWN_TIMEOUT (default 120) plus ~30s for result
+# acks and connection close. systemd's default is 90s, which SIGKILLs the
+# agent mid-drain and discards the in-flight results on every restart.
+TimeoutStopSec=150
 
 [Install]
 WantedBy=multi-user.target
@@ -296,6 +300,35 @@ sudo journalctl -u bullseye-agent -f
 ---
 
 ## Configuration
+
+### Shutdown behaviour
+
+When the agent is told to stop — `docker compose down`, a Kubernetes pod
+termination, or Ctrl-C — it shuts down gracefully: it stops accepting new
+tests, waits for the calls already in flight to finish, delivers their
+results to the Bullseye server, and then exits. A second stop signal exits
+immediately.
+
+`BULLSEYE_SHUTDOWN_TIMEOUT` (default `120` seconds) caps that wait. A test
+call takes roughly 60-90 seconds, so the default lets a call in progress
+run to completion.
+
+> **Running on Kubernetes?** Set the pod's
+> `terminationGracePeriodSeconds` to `BULLSEYE_SHUTDOWN_TIMEOUT` **plus
+> about 30 seconds** (Kubernetes defaults it to 30 in total). The extra
+> allowance covers waiting for the server to acknowledge the drained
+> results and closing the connection. Otherwise the kubelet force-kills
+> the agent part-way through and the results of every call in flight are
+> lost on each deploy, scale-down or node drain:
+>
+> ```yaml
+> spec:
+>   template:
+>     spec:
+>       terminationGracePeriodSeconds: 150   # 120s timeout + 30s
+> ```
+
+### Logging
 
 Set `LOG_LEVEL` in `.env` to control verbosity:
 

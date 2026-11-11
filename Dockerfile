@@ -1,4 +1,13 @@
-FROM python:3.12-slim@sha256:804ddf3251a60bbf9c92e73b7566c40428d54d0e79d3428194edf40da6521286
+# Base image pinned by digest. Re-pin it whenever you cut a release: a digest
+# never moves, so a stale pin keeps shipping the OS packages that were current
+# the day it was taken. Look up the current one with:
+#   docker pull python:3.12-slim && docker image inspect python:3.12-slim \
+#     | jq -r '.[0].RepoDigests[0]'
+#
+# Re-pinned 2026-11-05. The previous pin (804ddf32) had accumulated 6 critical
+# and 71 high fixable CVEs across 19 OS packages, including openssl/libssl3 and
+# libsqlite3. This digest scans clean at high/critical.
+FROM python:3.12-slim@sha256:4840d514c583a4d3d8cad3940e68dee6f0f6f3635c12fcd0a3d74c21a5b93a54
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

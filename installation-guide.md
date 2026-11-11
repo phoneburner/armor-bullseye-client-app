@@ -1,6 +1,6 @@
 # Bullseye Agent — Installation & Configuration Guide
 
-**Version 1.0.9**
+**Version 1.0.11**
 
 This is the Markdown version of the install guide. An HTML version
 (`installation-guide.html`) covers the same material.
@@ -68,19 +68,19 @@ Before you begin, make sure you have:
 
 Download the latest agent release from GitHub:
 
-- [bullseye-agent-1.0.9.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.9.tar.gz)
-- [bullseye-agent-1.0.9.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.9.zip)
+- [bullseye-agent-1.0.11.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.11.tar.gz)
+- [bullseye-agent-1.0.11.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.11.zip)
 
 Extract:
 
 ```bash
 # Linux / macOS
-tar xzf bullseye-agent-1.0.9.tar.gz
-cd armor-bullseye-client-app-1.0.9
+tar xzf bullseye-agent-1.0.11.tar.gz
+cd armor-bullseye-client-app-1.0.11
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.9.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.9
+Expand-Archive bullseye-agent-1.0.11.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.11
 ```
 
 You should see:
@@ -358,7 +358,7 @@ after reboots or crashes. The README has a sample `systemd` unit.
 After starting the agent, check the startup log:
 
 ```
-B U L L S E Y E  v1.0.9
+B U L L S E Y E  v1.0.11
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -463,6 +463,28 @@ The BXML answer URL isn't reachable. From outside your environment:
 - Confirm `event_socket.conf.xml` binds to an interface reachable from the agent.
 - Test from the agent host: `nc -vz $FREESWITCH_HOST $FREESWITCH_PORT`.
 
+### Kubernetes: results lost on every deploy
+
+If you run the agent on Kubernetes, set the pod's
+`terminationGracePeriodSeconds` to `BULLSEYE_SHUTDOWN_TIMEOUT` plus about
+30 seconds (the timeout defaults to 120; Kubernetes defaults the grace
+period to only 30 in total). The extra allowance covers waiting for the
+server to acknowledge the drained results and closing the connection:
+
+```yaml
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 150   # 120s timeout + 30s
+```
+
+The agent finishes its in-flight calls and reports their results before
+exiting, but it can only do that if the kubelet gives it the time. With
+the default 30s grace period, every deploy, scale-down or node drain
+force-kills the agent part-way through and the results of all calls in
+flight are lost — they are reported to you as failed even though the
+calls themselves may have connected normally.
+
 ### Updating the agent
 
 ```bash
@@ -502,4 +524,4 @@ For help, contact your Bullseye representative. Include in your message:
 
 ---
 
-*Bullseye Agent v1.0.9 — Installation Guide — © 2026 Armor Solutions, Inc.*
+*Bullseye Agent v1.0.11 — Installation Guide — © 2026 Armor Solutions, Inc.*
