@@ -29,8 +29,9 @@ def _classify(e: BaseException) -> tuple[str, str]:
         status = getattr(e, "status", None)
         if status in (401, 403) or code in (20003, 20004):
             return ("auth_error",
-                    "Twilio credentials rejected — check TWILIO_ACCOUNT_SID "
-                    "and TWILIO_AUTH_TOKEN.")
+                    "Twilio credentials rejected — check TWILIO_ACCOUNT_SID and "
+                    "either TWILIO_API_KEY_SID/TWILIO_API_KEY_SECRET or "
+                    "TWILIO_AUTH_TOKEN.")
         # From-number problems: not owned by this account, not voice-capable,
         # or SIP-domain-mismatched.
         if code in (21212, 21606, 21210):
@@ -65,9 +66,45 @@ class TwilioProvider(TelephonyProvider):
     def __init__(self):
         account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
         auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
-        if not account_sid or not auth_token:
-            raise ValueError("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required")
-        self.client = Client(account_sid, auth_token)
+        api_key_sid = os.environ.get("TWILIO_API_KEY_SID")
+        api_key_secret = os.environ.get("TWILIO_API_KEY_SECRET")
+
+        if not account_sid:
+            raise ValueError("TWILIO_ACCOUNT_SID is required")
+        if not account_sid.startswith("AC"):
+            # Every Twilio REST path embeds the Account SID, so an API Key SID
+            # here produces a bare 404 for an account that does not exist.
+            raise ValueError(
+                f"TWILIO_ACCOUNT_SID must be the Account SID beginning with 'AC' "
+                f"(got one beginning with {account_sid[:2]!r}). An API Key SID "
+                f"('SK...') belongs in TWILIO_API_KEY_SID instead."
+            )
+
+        if api_key_sid or api_key_secret:
+            # API key auth. The key authenticates the caller; account_sid still
+            # selects the account it acts on. Preferred for customer-supplied
+            # credentials: the customer can revoke the key in their console
+            # without rotating the account-wide auth token.
+            if not (api_key_sid and api_key_secret):
+                raise ValueError(
+                    "TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET must be set together"
+                )
+            if not api_key_sid.startswith("SK"):
+                raise ValueError(
+                    f"TWILIO_API_KEY_SID must begin with 'SK' (got one beginning "
+                    f"with {api_key_sid[:2]!r})."
+                )
+            self.client = Client(api_key_sid, api_key_secret, account_sid)
+            self.auth_mode = "api_key"
+        elif auth_token:
+            self.client = Client(account_sid, auth_token)
+            self.auth_mode = "auth_token"
+        else:
+            raise ValueError(
+                "Twilio credentials are required: either TWILIO_API_KEY_SID with "
+                "TWILIO_API_KEY_SECRET, or TWILIO_AUTH_TOKEN"
+            )
+        log.info("Twilio auth mode: %s", self.auth_mode)
         # The SDK's shared requests.Session defaults to a pool of 10
         # connections; with more concurrent calls than that, poll requests
         # queue for a socket and stretch every call's wall time. Size the
@@ -83,11 +120,20 @@ class TwilioProvider(TelephonyProvider):
             log.debug("Could not resize Twilio HTTP connection pool", exc_info=True)
 
     def preflight(self) -> None:
-        # Fetch the account resource: cheap, no side effects, exercises the
-        # full path — DNS to api.twilio.com, TCP + TLS, HTTP request/response,
-        # and Basic Auth credentials. If this succeeds, real call attempts
-        # should reach Twilio too.
-        self.client.api.account.fetch()
+        # Cheap, no side effects, exercises the full path — DNS to
+        # api.twilio.com, TCP + TLS, HTTP request/response, and Basic Auth
+        # credentials. If this succeeds, real call attempts should reach
+        # Twilio too.
+        #
+        # The probe differs by auth mode. API keys are not permitted to read
+        # the Account resource at all (401, code 70004) however broad their
+        # permissions, so fetching it would fail preflight for every API-key
+        # deployment while calls themselves worked perfectly. Listing one call
+        # is the equivalent check that a key is allowed to make.
+        if self.auth_mode == "api_key":
+            self.client.calls.list(limit=1)
+        else:
+            self.client.api.account.fetch()
 
     def place_call(self, from_number: str, to_number: str, on_event: CallEventCallback | None = None) -> CallResult:
         hold = random_hold_seconds()
