@@ -303,7 +303,7 @@
 <div class="header">
   <h1>Bullseye Agent</h1>
   <div class="subtitle">Installation &amp; Configuration Guide</div>
-  <div class="version">v1.0.11</div>
+  <div class="version">v1.0.12</div>
 </div>
 
 <nav class="toc">
@@ -402,7 +402,7 @@
     <td><strong>Telecom provider account</strong></td>
     <td>
       <strong>Bandwidth</strong> — Account ID, OAuth Client ID/Secret, Application ID<br>
-      <strong>Twilio</strong> — Account SID + primary Auth Token<br>
+      <strong>Twilio</strong> — Account SID + API key (or primary Auth Token)<br>
       <strong>Telnyx</strong> — API key + Call Control Connection ID<br>
       <strong>RingCentral</strong> — Client ID, Client Secret, JWT token + Node.js 18+<br>
       <strong>Asterisk</strong> — ARI URL + credentials + a dial endpoint template<br>
@@ -432,23 +432,23 @@
 <p>Download the latest agent package:</p>
 
 <div class="download-row">
-  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.11.tar.gz" class="download-btn">
-    <span class="arrow">&darr;</span> bullseye-agent-1.0.11.tar.gz
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.12.tar.gz" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.12.tar.gz
   </a>
-  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.11.zip" class="download-btn">
-    <span class="arrow">&darr;</span> bullseye-agent-1.0.11.zip
+  <a href="https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.12.zip" class="download-btn">
+    <span class="arrow">&darr;</span> bullseye-agent-1.0.12.zip
   </a>
 </div>
 
 <p>Extract the archive:</p>
 
 <pre><code># Linux / macOS
-tar xzf bullseye-agent-1.0.11.tar.gz
-cd armor-bullseye-client-app-1.0.11
+tar xzf bullseye-agent-1.0.12.tar.gz
+cd armor-bullseye-client-app-1.0.12
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.11.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.11</code></pre>
+Expand-Archive bullseye-agent-1.0.12.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.12</code></pre>
 
 <p>You should see the following files:</p>
 
@@ -568,24 +568,41 @@ needed.</p>
 <p><strong>What you need:</strong></p>
 <ul>
   <li>A Twilio account</li>
-  <li>The primary Account SID and Auth Token from the
-    <a href="https://console.twilio.com">Twilio Console dashboard</a>
-    (not an API key)</li>
+  <li>Your <strong>Account SID</strong> (begins with <code>AC</code>) from the
+    <a href="https://console.twilio.com">Twilio Console dashboard</a></li>
+  <li>Either an <strong>API key</strong> (recommended) or your primary
+    <strong>Auth Token</strong></li>
   <li>A phone number with voice capability purchased in the account</li>
 </ul>
 
 <table class="env-table">
   <tr><th>Variable</th><th>Description</th></tr>
-  <tr><td><code>TWILIO_ACCOUNT_SID</code></td><td>Account SID (starts with <code>AC</code>)</td></tr>
-  <tr><td><code>TWILIO_AUTH_TOKEN</code></td><td>Primary Auth Token from the Console dashboard</td></tr>
+  <tr><td><code>TWILIO_ACCOUNT_SID</code></td><td>Always the Account SID, beginning <code>AC</code>. An identifier, not a secret.</td></tr>
+  <tr><td><code>TWILIO_API_KEY_SID</code></td><td>API key SID, beginning <code>SK</code>. Set together with the secret below.</td></tr>
+  <tr><td><code>TWILIO_API_KEY_SECRET</code></td><td>API key secret, shown only once when the key is created</td></tr>
+  <tr><td><code>TWILIO_AUTH_TOKEN</code></td><td>Primary Auth Token — the alternative to an API key</td></tr>
 </table>
 
-<div class="callout callout-warning">
-  <div class="callout-title">Use the Auth Token, not an API key</div>
+<div class="callout callout-info">
+  <div class="callout-title">An API key is the better choice</div>
   <p>
-    Twilio API keys (<code>SK...</code>) have restricted permissions and
-    will not work. Use the primary Auth Token displayed on the
-    <a href="https://console.twilio.com">Console dashboard</a>.
+    Create one under <strong>Account &rarr; API keys &amp; tokens</strong> in the
+    Twilio Console. A key can be revoked on its own, so you never have to rotate
+    the Auth Token that every other Twilio integration in your account shares.
+    Set <code>TWILIO_API_KEY_SID</code> and <code>TWILIO_API_KEY_SECRET</code>
+    together — setting only one is rejected at startup. If both an API key and an
+    Auth Token are present, the API key is used.
+  </p>
+</div>
+
+<div class="callout callout-warning">
+  <div class="callout-title">Never put an SK value in TWILIO_ACCOUNT_SID</div>
+  <p>
+    Every Twilio REST path embeds the Account SID, so an <code>SK...</code>
+    value there produces a bare 404 for an account that does not exist, rather
+    than an authentication error. <code>TWILIO_ACCOUNT_SID</code> is always the
+    <code>AC...</code> value; the <code>SK...</code> value belongs in
+    <code>TWILIO_API_KEY_SID</code>.
   </p>
 </div>
 
@@ -785,7 +802,7 @@ FreeSWITCH ESL port (8021 by default).</p>
 </ul>
 
 <p>
-  See <a href="https://github.com/phoneburner/armor-bullseye-client-app/blob/v1.0.11/CUSTOM_PROVIDER_GUIDE.md"><code>CUSTOM_PROVIDER_GUIDE.md</code></a>
+  See <a href="https://github.com/phoneburner/armor-bullseye-client-app/blob/v1.0.12/CUSTOM_PROVIDER_GUIDE.md"><code>CUSTOM_PROVIDER_GUIDE.md</code></a>
   in the agent repo for the full walkthrough: function signature, expected
   return values, status codes, and a reference implementation sketch.
 </p>
@@ -843,7 +860,7 @@ implementation determines what your environment needs.</p>
       oo           oo
         ooooooooooo
 
-      B U L L S E Y E  v1.0.11
+      B U L L S E Y E  v1.0.12
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -1046,10 +1063,14 @@ the call progress in the logs:</p>
 
 <h3>Twilio: authentication errors</h3>
 <p>
-  Use the primary <strong>Account SID</strong> and <strong>Auth Token</strong>
-  from the <a href="https://console.twilio.com">Twilio Console dashboard</a>,
-  not an API key (<code>SK...</code>). API keys have restricted permissions
-  that prevent call placement.
+  Check that <code>TWILIO_ACCOUNT_SID</code> holds the <code>AC...</code>
+  Account SID from the
+  <a href="https://console.twilio.com">Twilio Console dashboard</a>. An
+  <code>SK...</code> API key SID placed there returns a 404 rather than an
+  authentication error, because the Account SID forms part of every request
+  path. If you authenticate with an API key, set both
+  <code>TWILIO_API_KEY_SID</code> and <code>TWILIO_API_KEY_SECRET</code>;
+  setting only one is rejected at startup.
 </p>
 
 <h3>Bandwidth: calls fail immediately</h3>
@@ -1172,7 +1193,7 @@ transiently to execute the test and are not retained.</p>
 
 
 <div class="footer">
-  Bullseye Agent v1.0.11 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
+  Bullseye Agent v1.0.12 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
 </div>
 
 </body>

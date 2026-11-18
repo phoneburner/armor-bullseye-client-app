@@ -22,7 +22,7 @@ from providers.freeswitch_provider import FreeSwitchProvider
 from providers.proprietary_provider import ProprietaryProvider
 from providers.mock_provider import MockProvider
 
-__version__ = "1.0.11"
+__version__ = "1.0.12"
 
 log = logging.getLogger("bullseye")
 
