@@ -1,6 +1,6 @@
 # Bullseye Agent — Installation & Configuration Guide
 
-**Version 1.0.11**
+**Version 1.0.12**
 
 This is the Markdown version of the install guide. An HTML version
 (`installation-guide.html`) covers the same material.
@@ -68,19 +68,19 @@ Before you begin, make sure you have:
 
 Download the latest agent release from GitHub:
 
-- [bullseye-agent-1.0.11.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.11.tar.gz)
-- [bullseye-agent-1.0.11.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.11.zip)
+- [bullseye-agent-1.0.12.tar.gz](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.12.tar.gz)
+- [bullseye-agent-1.0.12.zip](https://github.com/phoneburner/armor-bullseye-client-app/archive/refs/tags/v1.0.12.zip)
 
 Extract:
 
 ```bash
 # Linux / macOS
-tar xzf bullseye-agent-1.0.11.tar.gz
-cd armor-bullseye-client-app-1.0.11
+tar xzf bullseye-agent-1.0.12.tar.gz
+cd armor-bullseye-client-app-1.0.12
 
 # Windows (PowerShell)
-Expand-Archive bullseye-agent-1.0.11.zip -DestinationPath .
-cd armor-bullseye-client-app-1.0.11
+Expand-Archive bullseye-agent-1.0.12.zip -DestinationPath .
+cd armor-bullseye-client-app-1.0.12
 ```
 
 You should see:
@@ -116,6 +116,9 @@ Edit `.env` and fill in the required values:
 
 Then set the credentials for your provider. See the next section.
 
+Optional settings, including how many calls the agent places at once, are
+described in [Configuration Reference](#9-configuration-reference).
+
 ---
 
 ## 5. Provider Setup
@@ -150,13 +153,29 @@ CPaaS platform with direct programmatic voice. One-legged, fully automated.
 
 **What you need:**
 - A Twilio account.
-- The **primary Account SID and Auth Token** from the Twilio Console dashboard (not an API key — API keys `SK...` have restricted permissions and will not work).
+- Your **Account SID** (begins with `AC`) from the [Twilio Console dashboard](https://console.twilio.com).
+- Either an **API key** (recommended) or your primary **Auth Token**.
 - A phone number with voice capability purchased in the account.
 
 | Variable | Description |
 |----------|-------------|
-| `TWILIO_ACCOUNT_SID` | Account SID (starts with `AC`) |
-| `TWILIO_AUTH_TOKEN` | Primary Auth Token from the Console dashboard |
+| `TWILIO_ACCOUNT_SID` | Always the Account SID, beginning `AC`. An identifier, not a secret. |
+| `TWILIO_API_KEY_SID` | API key SID, beginning `SK`. Set together with the secret below. |
+| `TWILIO_API_KEY_SECRET` | API key secret, shown only once when the key is created |
+| `TWILIO_AUTH_TOKEN` | Primary Auth Token — the alternative to an API key |
+
+> **An API key is the better choice.** Create one under Account → API keys &
+> tokens in the Twilio Console. A key can be revoked on its own, so you never
+> have to rotate the Auth Token that every other Twilio integration in your
+> account shares. Set `TWILIO_API_KEY_SID` and `TWILIO_API_KEY_SECRET`
+> together — setting only one is rejected at startup. If both an API key and
+> an Auth Token are present, the API key is used.
+
+> **Never put an `SK` value in `TWILIO_ACCOUNT_SID`.** Every Twilio REST path
+> embeds the Account SID, so an `SK...` value there produces a bare 404 for an
+> account that does not exist, rather than an authentication error.
+> `TWILIO_ACCOUNT_SID` is always the `AC...` value; the `SK...` value belongs
+> in `TWILIO_API_KEY_SID`.
 
 ### Telnyx
 
@@ -315,11 +334,12 @@ ready to receive tests`. Press Ctrl+C to stop tailing (the agent keeps running).
 |---------|-------------|
 | `docker compose up -d --build` | Start or rebuild the agent |
 | `docker compose down` | Stop the agent |
-| `docker compose down && docker compose up -d --build` | Restart and pick up `.env` changes |
+| `docker compose up -d` | Apply `.env` changes (recreates the container) |
+| `docker compose restart` | Restart with the current settings (does **not** re-read `.env`) |
 | `docker logs -f bullseye-agent` | Follow logs in real time |
 | `docker logs --tail 100 bullseye-agent` | Show last 100 log lines |
 
-`docker compose restart` does **not** re-read `.env`. Use `down && up`.
+`docker compose restart` does **not** re-read `.env`. Use `docker compose up -d`.
 
 ---
 
@@ -358,7 +378,7 @@ after reboots or crashes. The README has a sample `systemd` unit.
 After starting the agent, check the startup log:
 
 ```
-B U L L S E Y E  v1.0.11
+B U L L S E Y E  v1.0.12
 
 12:00:01 INFO     Server:   configured
 12:00:01 INFO     Provider: twilio
@@ -386,8 +406,50 @@ for every option.
 | `TELEPHONY_PROVIDER` | Which provider implementation to load |
 | `BULLSEYE_ALLOW_INSECURE` | Set to `1` to allow `http://` server URLs (local testing only) |
 | `LOG_LEVEL` | `DEBUG`, `INFO` (default), `WARNING`, or `ERROR` |
+| `BULLSEYE_MAX_CONCURRENT_CALLS` | Maximum simultaneous calls (default `10`). See below. |
+| `BULLSEYE_SHUTDOWN_TIMEOUT` | Seconds to wait for in-flight calls on shutdown (default `120`) |
+| `BULLSEYE_CONTAINER_NAME` | Docker container name (default `bullseye-agent`). See below. |
 
 Plus the provider-specific variables in [section 5](#5-provider-setup).
+
+After editing `.env`, apply the change with `docker compose up -d`; a plain
+`docker compose restart` keeps the old values.
+
+### Call concurrency
+
+The agent places up to `BULLSEYE_MAX_CONCURRENT_CALLS` calls at the same
+time. When more tests arrive than that, the extra tests wait in the agent's
+queue until a call finishes.
+
+Each test occupies a slot for about a minute: ring time plus a 35–55 second
+hold. The agent therefore completes roughly as many tests per minute as its
+cap. If your tests arrive in bursts, set the cap to at least the number of
+tests per minute you expect at peak.
+
+> **Tests should dial promptly.** The receiving side of each test is prepared
+> just before the test is sent to your agent. A test that waits in the queue
+> delays its own result and every test behind it. If your agent regularly has
+> tests waiting to dial, raise the cap.
+
+**Stay within your provider's limits.** Check your account's concurrent-call
+limit and its calls-per-second (CPS) rate before raising the cap. A call the
+provider rejects for exceeding a limit is reported as `rate_limited`. Twilio
+accounts allow one new outbound call per second by default; at about a minute
+per call, that comfortably supports a cap of around 40. Ask your provider to
+raise the CPS rate before going higher.
+
+### Running more than one agent on a host
+
+Docker container names are global to a host, so two agents both named
+`bullseye-agent` collide. Give each agent its own directory and set a unique
+name in each agent's `.env`:
+
+```bash
+BULLSEYE_CONTAINER_NAME=bullseye-agent-2
+```
+
+Use that name in place of `bullseye-agent` in the `docker logs` and
+`docker exec` commands in this guide.
 
 ---
 
@@ -443,8 +505,19 @@ quotes).
 
 ### Twilio: "authentication error"
 
-You're probably using a restricted API key (`SK...`). Use the primary Account
-SID + Auth Token from the Twilio Console dashboard.
+Check that `TWILIO_ACCOUNT_SID` holds the `AC...` Account SID from the
+[Twilio Console dashboard](https://console.twilio.com). An `SK...` API key SID
+placed there returns a 404 rather than an authentication error, because the
+Account SID forms part of every request path. If you authenticate with an API
+key, set both `TWILIO_API_KEY_SID` and `TWILIO_API_KEY_SECRET`; setting only
+one is rejected at startup.
+
+### Tests wait before dialing
+
+If tests arrive faster than calls finish, or your Bullseye contact reports
+dial delays, the agent is at its concurrency cap. Raise
+`BULLSEYE_MAX_CONCURRENT_CALLS` within your provider's limits (see
+[Call concurrency](#call-concurrency)), then run `docker compose up -d`.
 
 ### Bandwidth: call dials but never hangs up
 
@@ -524,4 +597,4 @@ For help, contact your Bullseye representative. Include in your message:
 
 ---
 
-*Bullseye Agent v1.0.11 — Installation Guide — © 2026 Armor Solutions, Inc.*
+*Bullseye Agent v1.0.12 — Installation Guide — © 2026 Armor Solutions, Inc.*

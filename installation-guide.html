@@ -175,6 +175,9 @@
     color: var(--text-secondary);
   }
   tr:nth-child(even) td { background: #fafbfc; }
+  tr { page-break-inside: avoid; }
+  table.env-table { page-break-inside: avoid; }
+  .keep { page-break-inside: avoid; }
 
   /* Callouts */
   .callout {
@@ -495,6 +498,11 @@ chmod 600 .env</code></pre>
 
 <p>Then set the credentials for your provider. See the next section for details.</p>
 
+<p>
+  Optional settings, including how many calls the agent places at once, are
+  described in <a href="#configuration-reference">Configuration Reference</a>.
+</p>
+
 <div class="page-break"></div>
 
 <h2 id="providers">5. Provider Setup</h2>
@@ -511,6 +519,7 @@ needed.</p>
   other providers including RingCentral.
 </p>
 
+<div class="keep">
 <p><strong>What you need:</strong></p>
 <ul>
   <li>A Bandwidth account with Voice API enabled. A free
@@ -523,6 +532,7 @@ needed.</p>
   <li>A Voice Application (provides the Application ID)</li>
   <li>A phone number assigned to that application</li>
 </ul>
+</div>
 
 <table class="env-table">
   <tr><th>Variable</th><th>Description</th></tr>
@@ -565,6 +575,7 @@ needed.</p>
   one-legged and fully automated.
 </p>
 
+<div class="keep">
 <p><strong>What you need:</strong></p>
 <ul>
   <li>A Twilio account</li>
@@ -574,6 +585,7 @@ needed.</p>
     <strong>Auth Token</strong></li>
   <li>A phone number with voice capability purchased in the account</li>
 </ul>
+</div>
 
 <table class="env-table">
   <tr><th>Variable</th><th>Description</th></tr>
@@ -617,6 +629,7 @@ needed.</p>
   the Telnyx API; this does not affect call completion.
 </p>
 
+<div class="keep">
 <p><strong>What you need:</strong></p>
 <ul>
   <li>A Telnyx account with a <strong>Voice API (Call Control)</strong>
@@ -625,6 +638,7 @@ needed.</p>
   <li>A phone number assigned to the Call Control application</li>
   <li>An outbound voice profile assigned to the application</li>
 </ul>
+</div>
 
 <table class="env-table">
   <tr><th>Variable</th><th>Description</th></tr>
@@ -645,6 +659,7 @@ needed.</p>
   directly via SIP.
 </p>
 
+<div class="keep">
 <p><strong>What you need:</strong></p>
 <ul>
   <li>A RingCentral account with a REST API application registered at
@@ -654,6 +669,7 @@ needed.</p>
     To create: Admin Portal &rarr; Phones &amp; Devices &rarr; Add Device &rarr;
     Existing Phone.</li>
 </ul>
+</div>
 
 <table class="env-table">
   <tr><th>Variable</th><th>Description</th></tr>
@@ -705,6 +721,7 @@ needed.</p>
   (Asterisk REST Interface) over HTTP + WebSocket.
 </p>
 
+<div class="keep">
 <p><strong>What you need:</strong></p>
 <ul>
   <li>An Asterisk instance reachable from the agent host</li>
@@ -715,6 +732,7 @@ needed.</p>
   <li>An outbound SIP trunk or endpoint configured for the destinations
     you want to dial</li>
 </ul>
+</div>
 
 <table class="env-table">
   <tr><th>Variable</th><th>Description</th></tr>
@@ -749,6 +767,7 @@ ARI HTTP port (8088 by default).</p>
   event stream for the terminal hangup cause.
 </p>
 
+<div class="keep">
 <p><strong>What you need:</strong></p>
 <ul>
   <li>A FreeSWITCH instance with <code>mod_event_socket</code> loaded
@@ -759,6 +778,7 @@ ARI HTTP port (8088 by default).</p>
   <li>A SIP profile or gateway configured for outbound calls to the
     destinations you want to dial</li>
 </ul>
+</div>
 
 <table class="env-table">
   <tr><th>Variable</th><th>Description</th></tr>
@@ -792,6 +812,7 @@ FreeSWITCH ESL port (8021 by default).</p>
   (WebSocket auth, reconnect, event streaming).
 </p>
 
+<div class="keep">
 <p><strong>What you need:</strong></p>
 <ul>
   <li>A way to programmatically place a call on your network (an internal
@@ -800,6 +821,7 @@ FreeSWITCH ESL port (8021 by default).</p>
     can add them as environment variables that your <code>place_call</code>
     reads</li>
 </ul>
+</div>
 
 <p>
   See <a href="https://github.com/phoneburner/armor-bullseye-client-app/blob/v1.0.12/CUSTOM_PROVIDER_GUIDE.md"><code>CUSTOM_PROVIDER_GUIDE.md</code></a>
@@ -879,16 +901,19 @@ implementation determines what your environment needs.</p>
   </p>
 </div>
 
+<div style="page-break-inside: avoid;">
 <h3>Common Docker commands</h3>
 
 <table>
   <tr><th>Command</th><th>Description</th></tr>
   <tr><td><code>docker compose up -d --build</code></td><td>Start or rebuild the agent</td></tr>
   <tr><td><code>docker compose down</code></td><td>Stop the agent</td></tr>
-  <tr><td><code>docker compose restart</code></td><td>Restart (picks up <code>.env</code> changes)</td></tr>
+  <tr><td><code>docker compose up -d</code></td><td>Apply <code>.env</code> changes (recreates the container)</td></tr>
+  <tr><td><code>docker compose restart</code></td><td>Restart with the current settings (does <strong>not</strong> re-read <code>.env</code>)</td></tr>
   <tr><td><code>docker logs -f bullseye-agent</code></td><td>Follow logs in real time</td></tr>
   <tr><td><code>docker logs --tail 100 bullseye-agent</code></td><td>Show last 100 log lines</td></tr>
 </table>
+</div>
 
 
 <h2 id="install-python">7. Install with Python (Alternative)</h2>
@@ -903,8 +928,10 @@ implementation determines what your environment needs.</p>
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt</code></pre>
 
+<div class="keep">
 <h3><span class="step-num">3</span> Start the agent</h3>
 <pre><code>python3 main.py</code></pre>
+</div>
 
 <div class="callout callout-warning">
   <div class="callout-title">Keep it running</div>
@@ -916,7 +943,6 @@ pip install -r requirements.txt</code></pre>
   </p>
 </div>
 
-<div class="page-break"></div>
 
 <h2 id="verify">8. Verify the Connection</h2>
 
@@ -943,7 +969,66 @@ the call progress in the logs:</p>
 
 <h2 id="configuration-reference">9. Configuration Reference</h2>
 
-<p>All configuration is done through the <code>.env</code> file.</p>
+<p>
+  All configuration is done through the <code>.env</code> file. After editing
+  it, apply the change with <code>docker compose up -d</code>; a plain
+  <code>docker compose restart</code> keeps the old values.
+</p>
+
+<h3>Call concurrency</h3>
+
+<p>
+  The agent places up to <code>BULLSEYE_MAX_CONCURRENT_CALLS</code> calls at
+  the same time. When more tests arrive than that, the extra tests wait in the
+  agent's queue until a call finishes.
+</p>
+
+<table class="env-table">
+  <tr><th>Variable</th><th>Description</th></tr>
+  <tr><td><code>BULLSEYE_MAX_CONCURRENT_CALLS</code></td><td>Optional. Maximum number of simultaneous calls (default <code>10</code>). Must be a whole number, 1 or more.</td></tr>
+</table>
+
+<p>
+  Each test occupies a slot for about a minute: ring time plus a 35&ndash;55
+  second hold. The agent therefore completes roughly as many tests per minute
+  as its cap. If your tests arrive in bursts, set the cap to at least the
+  number of tests per minute you expect at peak.
+</p>
+
+<div class="callout callout-info">
+  <div class="callout-title">Tests should dial promptly</div>
+  <p>
+    The receiving side of each test is prepared just before the test is sent
+    to your agent. A test that waits in the queue delays its own result and
+    every test behind it. If your agent regularly has tests waiting to dial,
+    raise the cap.
+  </p>
+</div>
+
+<p>
+  <strong>Stay within your provider's limits.</strong> Check your account's
+  concurrent-call limit and its calls-per-second (CPS) rate before raising the
+  cap. A call the provider rejects for exceeding a limit is reported as
+  <code>rate_limited</code>. Twilio accounts allow one new outbound call per
+  second by default; at about a minute per call, that comfortably supports a
+  cap of around 40. Ask your provider to raise the CPS rate before going
+  higher.
+</p>
+
+<h3>Running more than one agent on a host</h3>
+
+<p>
+  Docker container names are global to a host, so two agents both named
+  <code>bullseye-agent</code> collide. Give each agent its own directory and
+  set a unique name in each agent's <code>.env</code>:
+</p>
+
+<pre><code>BULLSEYE_CONTAINER_NAME=bullseye-agent-2</code></pre>
+
+<p>
+  Use that name in place of <code>bullseye-agent</code> in the
+  <code>docker logs</code> and <code>docker exec</code> commands in this guide.
+</p>
 
 <h3>Shutdown behaviour</h3>
 
@@ -1093,6 +1178,15 @@ the call progress in the logs:</p>
   Add Device &rarr; Existing Phone.
 </p>
 
+<h3>Tests wait before dialing</h3>
+<p>
+  If tests arrive faster than calls finish, or your Bullseye contact reports
+  dial delays, the agent is at its concurrency cap. Raise
+  <code>BULLSEYE_MAX_CONCURRENT_CALLS</code> within your provider's limits
+  (see <a href="#configuration-reference">Call concurrency</a>), then run
+  <code>docker compose up -d</code>.
+</p>
+
 <h3>Calls are not being placed</h3>
 <p>Check the logs for error messages after the test arrives. Common causes:</p>
 <ul>
@@ -1147,12 +1241,14 @@ transiently to execute the test and are not retained.</p>
   refuses to connect over unencrypted channels by default.
 </p>
 
+<div class="keep">
 <h3>Agent isolation</h3>
 <p>
   Each agent authenticates with a unique API key and only receives tests
   addressed to its own agent ID. Agents cannot see other agents' tests
   or access any server-side data.
 </p>
+</div>
 
 <h3>Protecting the configuration file</h3>
 <ul>
@@ -1182,6 +1278,7 @@ transiently to execute the test and are not retained.</p>
 <hr>
 
 
+<div class="keep">
 <h2 id="support">12. Support</h2>
 
 <p>If you encounter issues, contact your Bullseye representative with:</p>
@@ -1194,6 +1291,7 @@ transiently to execute the test and are not retained.</p>
 
 <div class="footer">
   Bullseye Agent v1.0.12 &mdash; Installation Guide &mdash; &copy; 2026 Armor Solutions, Inc.
+</div>
 </div>
 
 </body>
